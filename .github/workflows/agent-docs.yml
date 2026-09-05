@@ -1,0 +1,62 @@
+name: Template Contract
+
+on:
+  pull_request:
+    paths:
+      - "AGENTS.md"
+      - "CLAUDE.md"
+      - "CODEX.md"
+      - "GEMINI.md"
+      - "README.md"
+      - "TODO.md"
+      - "ROADMAP.md"
+      - "CONTRIBUTING.md"
+      - "CHANGELOG.md"
+      - "LICENSE"
+      - ".env.example"
+      - ".github/copilot-instructions.md"
+      - ".github/workflows/agent-docs.yml"
+      - "addons/**"
+      - "profiles/**"
+      - ".cursor/rules/**"
+      - "docs/**"
+      - "personas/**"
+      - "Session Logs/**"
+      - "Templates/**"
+      - "scripts/check-agent-docs.ps1"
+      - "scripts/verify-template.ps1"
+  push:
+    branches:
+      - main
+    paths:
+      - "AGENTS.md"
+      - "CLAUDE.md"
+      - "CODEX.md"
+      - "GEMINI.md"
+      - "README.md"
+      - "TODO.md"
+      - "ROADMAP.md"
+      - "CONTRIBUTING.md"
+      - "CHANGELOG.md"
+      - "LICENSE"
+      - ".env.example"
+      - ".github/copilot-instructions.md"
+      - ".github/workflows/agent-docs.yml"
+      - "addons/**"
+      - "profiles/**"
+      - ".cursor/rules/**"
+      - "docs/**"
+      - "personas/**"
+      - "Session Logs/**"
+      - "Templates/**"
+      - "scripts/check-agent-docs.ps1"
+      - "scripts/verify-template.ps1"
+
+jobs:
+  validate-template:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check template contract
+        shell: pwsh
+        run: ./scripts/verify-template.ps1
