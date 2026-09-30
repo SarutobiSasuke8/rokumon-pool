@@ -9,13 +9,15 @@ npm install
 npm run dev
 ```
 
-Open the printed URL. Space or tap starts a match.
+Open the printed URL. Pick **Play vs Computer** (key 1 or Space) or **Two Players** (key 2).
 
+- **Computer opponent.** Picks the best available pot (cut angle, distances, pocket approach, clear cue and object paths), plays a safety when nothing is on, and places the cue ball to set up a pot after your fouls. Its accuracy is `AI.skill` in `src/scenes/GameScene.js`; the planner is pure code in `src/game/ai.js`.
 - **Aim and shoot.** Drag anywhere on the table to pull the cue back, release to shoot. The direction and power come from the drag vector, so your finger never has to cover the cue ball. A tap without a drag does nothing.
 - **Aim guide.** While dragging you see the cue stick, the projected cue-ball path, a ghost ball at first contact, the object ball's travel line, and a power bar.
 - **Rules.** Standard 8-ball: the first legal pot assigns suits, pot your suit to keep the table, clear your suit then pot the 8 to win. Potting the 8 early, on a scratch, or on a foul loses.
 - **Fouls.** Scratch, no ball hit, or hitting the wrong ball first (opponent's suit, or the 8 when you are not on it) gives the opponent ball in hand: tap or drag to place the cue ball anywhere that is free.
-- **R** restarts.
+- **Break.** The 8-ball dropping on the break is respotted, not a loss.
+- **R** restarts, **M** mutes (also the button bottom-right; the choice is remembered in this browser). Phones in portrait get a rotate prompt.
 
 ## Verify
 
@@ -23,11 +25,16 @@ Open the printed URL. Space or tap starts a match.
 npm run verify
 ```
 
-Runs the TypeScript check and the Vite build. The pure rules module has its own check:
+Runs the TypeScript check and the Vite build. The pure modules have their own checks:
 
 ```bash
 node scripts/test-rules.mjs
+node scripts/test-ai.mjs
 ```
+
+## Deploy
+
+`.github/workflows/pages.yml` deploys `dist/` to GitHub Pages on manual trigger. It needs the repository to be public (or a paid plan) and Pages enabled with "GitHub Actions" as the source. Alternatively `npx wrangler pages deploy dist` after `wrangler login`. The game is also catalogued in the Rokumon Games hub (`content/games/rokumon-pool.json` there; refresh the bundle with `npm run sync:game -- rokumon-pool` in the hub).
 
 ## Layout
 
@@ -37,6 +44,7 @@ node scripts/test-rules.mjs
 | `src/game/constants.js` | Table geometry, ball size, physics tuning, colours, rack order |
 | `src/game/rules.js` | Pure 8-ball shot resolution: fouls, suits, win and loss |
 | `src/game/aim.js` | Pure ray projection for the aim guide |
+| `src/game/ai.js` | Pure computer opponent: pot evaluation, safety, ball-in-hand placement |
 | `src/scenes/GameScene.js` | Table, balls, input phases (aim, shooting, placing), shot lifecycle |
 | `src/scenes/UIScene.js` | HUD: turn, message, remaining balls per player |
 | `src/systems/audio.js` | Web Audio synth for cue strike, ball clicks, cushion thuds, pockets |

@@ -36,7 +36,7 @@ function getNoise(c) {
 
 function burst({ duration, gain, cutoff, q = 1 }) {
   const c = ensure();
-  if (!c || throttled()) return;
+  if (!c || muted || throttled()) return;
   const src = c.createBufferSource();
   src.buffer = getNoise(c);
   const filter = c.createBiquadFilter();
@@ -54,7 +54,7 @@ function burst({ duration, gain, cutoff, q = 1 }) {
 
 function tone({ from, to, duration, gain, type = "sine" }) {
   const c = ensure();
-  if (!c || throttled()) return;
+  if (!c || muted || throttled()) return;
   const osc = c.createOscillator();
   osc.type = type;
   const env = c.createGain();
@@ -70,8 +70,19 @@ function tone({ from, to, duration, gain, type = "sine" }) {
 
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
+const MUTE_KEY = "rokumon-pool:muted";
+let muted = false;
+try { muted = localStorage.getItem(MUTE_KEY) === "1"; } catch { muted = false; }
+
 export const audio = {
   unlock() { ensure(); },
+  get muted() { return muted; },
+  setMuted(value) {
+    muted = Boolean(value);
+    try { localStorage.setItem(MUTE_KEY, muted ? "1" : "0"); } catch { /* per-viewer convenience only */ }
+    return muted;
+  },
+  toggleMuted() { return audio.setMuted(!muted); },
   // Ball on ball: a bright short click scaled by impact speed.
   click(intensity) {
     const v = clamp01(intensity);

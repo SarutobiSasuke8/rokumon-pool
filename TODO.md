@@ -31,10 +31,13 @@ Use this file for actionable game project work. Keep items concrete.
 - [ ] #task Decide the current stage using `Templates/GAME_STAGE_GATE.md`.
 - [ ] #task Replace procedural table/ball art with a real art pass once the feel is confirmed.
 - [ ] #task Consider call-pocket rules for the 8-ball shot (currently any legal pot after clearing suit wins).
-- [ ] #task Break-shot rule refinements: kitchen-only placement after a break scratch, re-rack or spot when the 8 drops on the break.
+- [ ] #task Kitchen-only placement after a break scratch (the 8 on the break is now respotted).
 - [ ] #task Cue-ball spin (english) and a draw/follow control, only if playtests ask for it.
-- [ ] #task Single-player mode against a simple AI (pick the easiest pot using `src/game/aim.js`).
-- [ ] #task Mute toggle and a settings surface for sound.
+- [x] #task Single-player mode against a computer opponent (`src/game/ai.js`, 2026-09-30).
+- [x] #task Mute toggle (M key + HUD button, 2026-09-30).
+- [ ] #task AI difficulty levels (Easy/Normal/Hard) exposed on the menu; `AI.skill` is the only knob today.
+- [ ] #task Deploy: make the repo public and run the Pages workflow, or `wrangler login` and deploy `dist/` to Cloudflare Pages. Then a phone playtest.
+- [ ] #task Hub media for the Rokumon Games catalogue entry: cover, hero, logo, screenshots (manifest has them as null).
 
 ## Done
 

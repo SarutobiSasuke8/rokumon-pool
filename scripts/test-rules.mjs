@@ -98,6 +98,29 @@ test("last suit ball and the 8 in the same shot is a loss", () => {
   assert.equal(r.winner, 2);
 });
 
+test("8-ball on the break is respotted, not a loss", () => {
+  const r = resolveShot(fresh(), { pocketed: [8, 3], firstContact: 1, isBreak: true });
+  assert.equal(r.winner, null);
+  assert.equal(r.respotEight, true);
+  assert.equal(r.match.gameOver, false);
+  assert.equal(r.match.assigned[1], "solid");
+  assert.equal(r.match.turn, 1);
+  assert.match(r.message, /respotted/);
+});
+
+test("8-ball plus scratch on the break: respot and foul, no loss", () => {
+  const r = resolveShot(fresh(), { pocketed: [8, "cue"], firstContact: 1, isBreak: true });
+  assert.equal(r.winner, null);
+  assert.equal(r.respotEight, true);
+  assert.equal(r.foulReason, "scratch");
+  assert.equal(r.match.turn, 2);
+});
+
+test("8-ball on a non-break shot is still a loss", () => {
+  const r = resolveShot(fresh(), { pocketed: [8], firstContact: 1, isBreak: false });
+  assert.equal(r.winner, 2);
+});
+
 test("input state is never mutated", () => {
   const m = withSuits("solid");
   const before = JSON.stringify(m);

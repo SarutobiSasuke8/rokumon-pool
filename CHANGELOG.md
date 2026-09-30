@@ -4,6 +4,17 @@ All notable changes to this project should be documented here.
 
 ## Unreleased
 
+### 2026-09-30 push forward (0.2.0)
+
+Added
+
+- Computer opponent: menu offers Play vs Computer or Two Players. The planner (`src/game/ai.js`, pure) scores every target and pocket pair by cut angle, distances, pocket approach angle and clear cue and object paths, falls back to a direct safety, and chooses a ball-in-hand spot that sets up a pot. Shots are previewed with the aim guide before they are taken. `scripts/test-ai.mjs` covers 6 cases.
+- The 8-ball dropping on the break is respotted instead of losing the game (rules test cases added, 16 total).
+- Mute toggle (M key and a HUD button), remembered per browser.
+- Portrait phones get a rotate-to-landscape prompt.
+- Game-over screen shows You win / Computer wins in solo mode and returns to the same mode; Esc goes to the menu.
+- Manual-trigger GitHub Pages workflow. Catalogued in the Rokumon Games hub as `rokumon-pool` (version 0.2.0).
+
 ### 2026-09-30 build review
 
 Fixed

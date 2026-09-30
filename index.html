@@ -1,1 +1,23 @@
-<!doctype html><html lang="en"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" /><title>Rokumon Pool</title><style>html,body,#app{min-height:100%;margin:0;background:#0b1020}#app{display:grid;place-items:center}canvas{max-width:100%;max-height:100svh;touch-action:none}</style></head><body><main id="app" aria-label="Browser game"></main><script type="module" src="/src/main.ts"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0b1020" />
+<title>Rokumon Pool</title>
+<style>
+  html,body,#app{min-height:100%;margin:0;background:#0b1020}
+  #app{display:grid;place-items:center}
+  canvas{max-width:100%;max-height:100svh;touch-action:none}
+  #rotate{display:none;position:fixed;inset:0;background:#0b1020;color:#e7efff;font:16px/1.5 sans-serif;place-items:center;text-align:center;padding:24px;z-index:10}
+  #rotate .icon{font-size:48px;display:block;margin-bottom:12px;animation:tilt 1.6s ease-in-out infinite}
+  @keyframes tilt{0%,100%{transform:rotate(0)}50%{transform:rotate(90deg)}}
+  @media (orientation: portrait) and (pointer: coarse) and (max-width: 900px){#rotate{display:grid}}
+</style>
+</head>
+<body>
+<main id="app" aria-label="Browser game"></main>
+<div id="rotate" role="status"><div><span class="icon" aria-hidden="true">📱</span>Rotate your phone to landscape to play.</div></div>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>

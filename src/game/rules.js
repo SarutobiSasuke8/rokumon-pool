@@ -27,12 +27,15 @@ function describeBall(id) {
   return `a ${kind} (${id})`;
 }
 
-export function resolveShot(match, { pocketed = [], firstContact = null } = {}) {
+export function resolveShot(match, { pocketed = [], firstContact = null, isBreak = false } = {}) {
   const next = JSON.parse(JSON.stringify(match));
   const player = next.turn;
   const other = player === 1 ? 2 : 1;
   const scratched = pocketed.includes("cue");
-  const eightPocketed = pocketed.includes(8);
+  // The 8 dropping on the break is not a loss: it is respotted and the shot
+  // otherwise resolves normally (a scratch alongside it is still a foul).
+  const respotEight = isBreak && pocketed.includes(8);
+  const eightPocketed = pocketed.includes(8) && !respotEight;
   const objectBalls = pocketed.filter((id) => id !== "cue" && id !== 8);
 
   // Whether the 8-ball was the legal object ball is judged from the state
@@ -82,5 +85,7 @@ export function resolveShot(match, { pocketed = [], firstContact = null } = {}) 
     next.turn = other;
   }
 
-  return { match: next, winner: null, foulReason, ballInHand: Boolean(foulReason), continueTurn, message };
+  if (respotEight) message = `${message ? `${message} ` : ""}The 8-ball dropped on the break and is respotted.`.trim();
+
+  return { match: next, winner: null, foulReason, ballInHand: Boolean(foulReason), continueTurn, respotEight, message };
 }
