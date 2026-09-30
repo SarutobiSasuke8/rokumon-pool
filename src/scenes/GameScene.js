@@ -1,9 +1,23 @@
 import Phaser from "phaser";
-import { TABLE, BALL, PHYSICS, COLORS, RACK_ORDER } from "../game/constants.js";
+import { TABLE, BALL, PHYSICS, INPUT, COLORS, RACK_ORDER, ballColor } from "../game/constants.js";
 import { createMatchState, snapshotMatch } from "../game/state.js";
+import { resolveShot } from "../game/rules.js";
+import { projectCuePath } from "../game/aim.js";
 import { createRestartKey } from "../systems/input.js";
 import { installDebug } from "../systems/debug.js";
+import { audio } from "../systems/audio.js";
 import { hub } from "../integrations/hub.js";
+
+const { Sleeping } = Phaser.Physics.Matter.Matter;
+
+export const PHASE = Object.freeze({
+  AIM: "aim",           // waiting for the player to drag and release
+  SHOOTING: "shooting", // balls in motion, waiting for rest
+  PLACING: "placing",   // ball in hand: player positions the cue ball
+  OVER: "over",
+});
+
+const CUE_START = Object.freeze({ x: TABLE.left + (TABLE.right - TABLE.left) * 0.25, y: TABLE.midY });
 
 export class GameScene extends Phaser.Scene {
   constructor() { super("Game"); }
@@ -12,14 +26,22 @@ export class GameScene extends Phaser.Scene {
     this.match = createMatchState();
     this.balls = new Map();
     this.pocketedThisTurn = [];
+    this.firstContact = null;
+    this.phase = PHASE.AIM;
     this.isDragging = false;
-    this.waitingForRest = false;
-    this.dragCurrent = { x: 0, y: 0 };
+    this.dragStart = null;
+    this.dragCurrent = null;
+    this.placementValid = false;
+    this.shotFrames = 0;
+    this.isBreak = true;
 
     this.drawTable();
     this.createCushions();
     this.createPockets();
     this.createBalls();
+
+    this.aimGfx = this.add.graphics().setDepth(5);
+    this.placeGfx = this.add.graphics().setDepth(6);
     this.setupInput();
 
     this.restartKey = createRestartKey(this);
@@ -27,9 +49,12 @@ export class GameScene extends Phaser.Scene {
 
     this.scene.launch("UI");
     hub.ready();
-    this.updateHud("Player 1 breaks");
+    this.updateHud("Player 1 breaks. Drag anywhere on the table to aim, release to shoot.");
     installDebug(this, () => snapshotMatch(this.match));
   }
+
+  // Kept for the debug harness and older callers.
+  get waitingForRest() { return this.phase === PHASE.SHOOTING; }
 
   update() {
     this.balls.forEach((entry) => {
@@ -43,16 +68,20 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    if (this.waitingForRest) {
-      const timedOut = this.time.now - this.shotStartedAt > PHYSICS.maxShotWaitMs;
+    if (this.phase === PHASE.SHOOTING) {
+      this.applyRollingResistance();
+      // Count simulated frames, not wall-clock time: a throttled or hidden
+      // tab must not force-stop a shot that has barely been simulated.
+      this.shotFrames += 1;
+      const timedOut = this.shotFrames > PHYSICS.maxShotWaitFrames;
       if (timedOut || this.allAtRest()) {
         if (timedOut) this.forceStop();
-        this.waitingForRest = false;
-        this.resolveShot();
+        this.finishShot();
       }
     }
 
     this.drawAim();
+    this.drawPlacement();
   }
 
   // ---- table construction ----------------------------------------------
@@ -71,14 +100,44 @@ export class GameScene extends Phaser.Scene {
   drawTable() {
     const g = this.add.graphics();
     const t = TABLE.cushionThickness;
+    const w = TABLE.right - TABLE.left;
+    const h = TABLE.bottom - TABLE.top;
     g.fillStyle(COLORS.railDark, 1);
-    g.fillRoundedRect(TABLE.left - t - 16, TABLE.top - t - 16, (TABLE.right - TABLE.left) + (t + 16) * 2, (TABLE.bottom - TABLE.top) + (t + 16) * 2, 18);
+    g.fillRoundedRect(TABLE.left - t - 16, TABLE.top - t - 16, w + (t + 16) * 2, h + (t + 16) * 2, 18);
     g.fillStyle(COLORS.rail, 1);
-    g.fillRect(TABLE.left - t, TABLE.top - t, (TABLE.right - TABLE.left) + t * 2, (TABLE.bottom - TABLE.top) + t * 2);
+    g.fillRect(TABLE.left - t, TABLE.top - t, w + t * 2, h + t * 2);
+    g.fillStyle(COLORS.clothEdge, 1);
+    g.fillRect(TABLE.left, TABLE.top, w, h);
     g.fillStyle(COLORS.cloth, 1);
-    g.fillRect(TABLE.left, TABLE.top, TABLE.right - TABLE.left, TABLE.bottom - TABLE.top);
-    g.fillStyle(COLORS.pocket, 1);
-    this.pocketPositions().forEach((p) => g.fillCircle(p.x, p.y, TABLE.pocketRadius));
+    g.fillRect(TABLE.left + 6, TABLE.top + 6, w - 12, h - 12);
+
+    // Head string marker so ball-in-hand placement has a visual anchor.
+    g.lineStyle(1, 0xffffff, 0.12);
+    g.lineBetween(CUE_START.x, TABLE.top + 6, CUE_START.x, TABLE.bottom - 6);
+    g.fillStyle(0xffffff, 0.18);
+    g.fillCircle(CUE_START.x, CUE_START.y, 3);
+    g.fillCircle(TABLE.left + w * 0.62, CUE_START.y, 3);
+
+    // Rail diamonds.
+    g.fillStyle(0xe8d9b5, 0.7);
+    for (let i = 1; i < 8; i += 1) {
+      if (i === 4) continue;
+      const x = TABLE.left + (w * i) / 8;
+      g.fillCircle(x, TABLE.top - t / 2, 2.5);
+      g.fillCircle(x, TABLE.bottom + t / 2, 2.5);
+    }
+    for (let i = 1; i < 4; i += 1) {
+      const y = TABLE.top + (h * i) / 4;
+      g.fillCircle(TABLE.left - t / 2, y, 2.5);
+      g.fillCircle(TABLE.right + t / 2, y, 2.5);
+    }
+
+    this.pocketPositions().forEach((p) => {
+      g.fillStyle(0x1a1a1a, 1);
+      g.fillCircle(p.x, p.y, TABLE.pocketRadius + 3);
+      g.fillStyle(COLORS.pocket, 1);
+      g.fillCircle(p.x, p.y, TABLE.pocketRadius);
+    });
   }
 
   createCushions() {
@@ -96,6 +155,19 @@ export class GameScene extends Phaser.Scene {
       const body = this.matter.bodies.rectangle(s.x, s.y, s.w, s.h, { isStatic: true, restitution: PHYSICS.restitutionCushion, friction: 0.02, label: "cushion" });
       this.matter.world.add(body);
     });
+
+    // Outer frame behind the pocket gaps: anything that slips past a pocket
+    // sensor still cannot leave the table.
+    const m = t + 12;
+    const outer = [
+      { x: TABLE.midX, y: TABLE.top - m - 10, w: (TABLE.right - TABLE.left) + m * 2, h: 20 },
+      { x: TABLE.midX, y: TABLE.bottom + m + 10, w: (TABLE.right - TABLE.left) + m * 2, h: 20 },
+      { x: TABLE.left - m - 10, y: TABLE.midY, w: 20, h: (TABLE.bottom - TABLE.top) + m * 2 },
+      { x: TABLE.right + m + 10, y: TABLE.midY, w: 20, h: (TABLE.bottom - TABLE.top) + m * 2 },
+    ];
+    outer.forEach((s) => {
+      this.matter.world.add(this.matter.bodies.rectangle(s.x, s.y, s.w, s.h, { isStatic: true, restitution: 0.2, label: "frame" }));
+    });
   }
 
   createPockets() {
@@ -107,87 +179,147 @@ export class GameScene extends Phaser.Scene {
 
   createBalls() {
     const r = BALL.radius;
-    this.addBall("cue", TABLE.left + (TABLE.right - TABLE.left) * 0.25, TABLE.midY, COLORS.cue, false, null, true);
+    this.addBall("cue", CUE_START.x, CUE_START.y);
 
     const apexX = TABLE.left + (TABLE.right - TABLE.left) * 0.62;
-    const rowDX = r * 2 * Math.cos(Math.PI / 6) + 0.6;
+    const pitch = r * 2 + PHYSICS.rackGap;
+    const rowDX = pitch * Math.cos(Math.PI / 6);
+    // A perfectly aligned rack behaves like a Newton's cradle: the impulse
+    // runs straight through and only the back-corner balls fly. A sub-pixel
+    // jitter, as in any real rack, scatters the wave across the whole pack.
+    const jitter = () => (Math.random() - 0.5) * PHYSICS.rackJitter * 2;
     RACK_ORDER.forEach((row, rowIndex) => {
       const x = apexX + rowIndex * rowDX;
       row.forEach((num, i) => {
-        const y = TABLE.midY + (i - rowIndex / 2) * (r * 2 + 0.6);
-        const isStripe = num > 8;
-        const color = num === 8 ? COLORS.eight : (isStripe ? COLORS.stripes[num] : COLORS.solids[num]);
-        this.addBall(num, x, y, color, isStripe, num, false);
+        const y = TABLE.midY + (i - rowIndex / 2) * pitch;
+        this.addBall(num, x + jitter(), y + jitter());
       });
     });
   }
 
-  addBall(id, x, y, color, isStripe, numberLabel, isCue) {
+  addBall(id, x, y) {
     const r = BALL.radius;
+    const isCue = id === "cue";
+    const isStripe = !isCue && id > 8;
     const body = this.matter.bodies.circle(x, y, r, {
       restitution: PHYSICS.restitutionBall,
-      friction: 0.02,
+      friction: PHYSICS.ballSurfaceFriction,
       frictionAir: PHYSICS.frictionAir,
       label: `ball:${id}`,
     });
     this.matter.world.add(body);
 
-    const view = this.add.container(x, y);
-    view.add(this.add.circle(0, 0, r, color));
+    const view = this.add.container(x, y).setDepth(2);
+    view.add(this.add.circle(0, 0, r, ballColor(id)));
     if (isStripe) view.add(this.add.circle(0, 0, r * 0.55, 0xffffff));
     if (!isCue) {
       if (!isStripe) view.add(this.add.circle(0, 0, r * 0.42, 0xffffff));
-      view.add(this.add.text(0, 0, String(numberLabel), { fontFamily: "sans-serif", fontSize: `${Math.round(r * 0.85)}px`, color: "#111111" }).setOrigin(0.5));
+      view.add(this.add.text(0, 0, String(id), { fontFamily: "sans-serif", fontSize: `${Math.round(r * 0.85)}px`, color: "#111111" }).setOrigin(0.5));
     }
+    // Soft highlight so the discs read as spheres.
+    view.add(this.add.circle(-r * 0.3, -r * 0.3, r * 0.22, 0xffffff, 0.35));
     this.balls.set(String(id), { id, body, view, active: true });
+    return this.balls.get(String(id));
+  }
+
+  activeTargets(excludeId = "cue") {
+    const out = [];
+    this.balls.forEach((entry, key) => {
+      if (!entry.active || key === excludeId) return;
+      out.push({ id: entry.id, x: entry.body.position.x, y: entry.body.position.y });
+    });
+    return out;
   }
 
   // ---- input / aiming -----------------------------------------------------
 
   setupInput() {
-    this.aimGfx = this.add.graphics();
-
     this.input.on("pointerdown", (p) => {
-      if (!this.canAim()) return;
+      audio.unlock();
+      if (this.phase === PHASE.PLACING) {
+        this.moveCueForPlacement(p.worldX, p.worldY);
+        return;
+      }
+      if (this.phase !== PHASE.AIM || this.isDragging) return;
       this.isDragging = true;
+      this.dragStart = { x: p.worldX, y: p.worldY };
       this.dragCurrent = { x: p.worldX, y: p.worldY };
     });
+
     this.input.on("pointermove", (p) => {
+      if (this.phase === PHASE.PLACING) {
+        this.moveCueForPlacement(p.worldX, p.worldY);
+        return;
+      }
       if (!this.isDragging) return;
       this.dragCurrent = { x: p.worldX, y: p.worldY };
     });
-    this.input.on("pointerup", (p) => {
+
+    const release = (p) => {
+      if (this.phase === PHASE.PLACING) {
+        this.moveCueForPlacement(p.worldX, p.worldY);
+        if (this.placementValid) this.confirmPlacement();
+        return;
+      }
       if (!this.isDragging) return;
       this.isDragging = false;
-      this.takeShot(p.worldX, p.worldY);
+      this.dragCurrent = { x: p.worldX, y: p.worldY };
+      const shot = this.shotFromDrag();
+      this.dragStart = null;
+      if (shot && !shot.cancelled) this.takeShot(shot.angle, shot.power);
+    };
+    this.input.on("pointerup", release);
+    this.input.on("pointerupoutside", release);
+  }
+
+  // The shot is the vector from where the drag is now back to where it
+  // started: pull back and release, like drawing a catapult. It does not
+  // matter where on the table the drag happens, so a finger never has to
+  // cover the cue ball, and a plain tap (below minDrag) never fires.
+  shotFromDrag() {
+    if (!this.dragStart || !this.dragCurrent) return null;
+    const dx = this.dragStart.x - this.dragCurrent.x;
+    const dy = this.dragStart.y - this.dragCurrent.y;
+    const raw = Math.hypot(dx, dy);
+    const dist = Math.min(raw, PHYSICS.maxPullback);
+    const angle = Math.atan2(dy, dx);
+    const power = dist / PHYSICS.maxPullback;
+    return { angle, power, raw, dist, cancelled: raw < INPUT.minDrag };
+  }
+
+  takeShot(angle, power) {
+    const cue = this.balls.get("cue");
+    if (!cue || !cue.active || this.phase !== PHASE.AIM) return;
+    const speed = Phaser.Math.Clamp(power, 0, 1) * PHYSICS.maxShotSpeed;
+    this.launchCue(cue, angle, speed);
+    audio.strike(power);
+  }
+
+  launchCue(cue, angle, speed) {
+    // Matter never wakes a body just because its velocity changed, so a cue
+    // ball that fell asleep between turns would otherwise ignore the shot.
+    Sleeping.set(cue.body, false);
+    this.matter.body.setVelocity(cue.body, { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed });
+    this.beginShot();
+  }
+
+  // Matter's resolver skips impulses on sleeping bodies and only wakes one
+  // body per contact pair per step, so a cue ball hitting a sleeping rack
+  // loses most of its energy one layer at a time. Wake everything before the
+  // shot so the whole rack responds in the same step.
+  wakeAll() {
+    this.balls.forEach((entry) => {
+      if (entry.active && entry.body.isSleeping) Sleeping.set(entry.body, false);
     });
   }
 
-  canAim() {
-    return !this.match.gameOver && !this.waitingForRest && !this.isDragging;
-  }
-
-  aimVector(px, py) {
-    const cue = this.balls.get("cue");
-    if (!cue || !cue.active) return null;
-    const cx = cue.body.position.x;
-    const cy = cue.body.position.y;
-    const dx = cx - px;
-    const dy = cy - py;
-    const dist = Phaser.Math.Clamp(Math.hypot(dx, dy), 0, PHYSICS.maxPullback);
-    return { cx, cy, angle: Math.atan2(dy, dx), dist };
-  }
-
-  takeShot(px, py) {
-    const aim = this.aimVector(px, py);
-    if (!aim || aim.dist < 6) return;
-    const power = aim.dist / PHYSICS.maxPullback;
-    const speed = power * PHYSICS.maxShotSpeed;
-    const cue = this.balls.get("cue");
-    this.matter.body.setVelocity(cue.body, { x: Math.cos(aim.angle) * speed, y: Math.sin(aim.angle) * speed });
+  beginShot() {
+    this.wakeAll();
     this.pocketedThisTurn = [];
-    this.waitingForRest = true;
-    this.shotStartedAt = this.time.now;
+    this.firstContact = null;
+    this.phase = PHASE.SHOOTING;
+    this.shotFrames = 0;
+    this.aimGfx.clear();
     this.updateHud("");
   }
 
@@ -195,48 +327,172 @@ export class GameScene extends Phaser.Scene {
     const entry = this.balls.get(String(id));
     if (!entry || !entry.active) return;
     const p = this.pocketPositions()[pocketIndex];
-    entry.body.isSleeping = false;
+    Sleeping.set(entry.body, false);
     this.matter.body.setPosition(entry.body, { x: p.x, y: p.y });
     this.matter.body.setVelocity(entry.body, { x: 0, y: 0 });
-    this.pocketedThisTurn = [];
-    this.waitingForRest = true;
-    this.shotStartedAt = this.time.now;
+    if (this.phase !== PHASE.SHOOTING) this.beginShot();
   }
 
   debugShoot(angleDeg, power = 1) {
     const cue = this.balls.get("cue");
     if (!cue || !cue.active) return;
+    if (this.phase === PHASE.PLACING) this.confirmPlacement();
     const angle = Phaser.Math.DegToRad(angleDeg);
-    const speed = Phaser.Math.Clamp(power, 0, 1) * PHYSICS.maxShotSpeed;
-    this.matter.body.setVelocity(cue.body, { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed });
-    this.pocketedThisTurn = [];
-    this.waitingForRest = true;
-    this.shotStartedAt = this.time.now;
+    this.launchCue(cue, angle, Phaser.Math.Clamp(power, 0, 1) * PHYSICS.maxShotSpeed);
   }
 
   drawAim() {
     this.aimGfx.clear();
-    if (!this.isDragging) return;
-    const aim = this.aimVector(this.dragCurrent.x, this.dragCurrent.y);
-    if (!aim || aim.dist < 4) return;
-    const { cx, cy, angle, dist } = aim;
-    const power = dist / PHYSICS.maxPullback;
+    if (this.phase !== PHASE.AIM || !this.isDragging) return;
+    const shot = this.shotFromDrag();
+    if (!shot || shot.raw < 3) return;
+    const cue = this.balls.get("cue");
+    if (!cue || !cue.active) return;
 
-    const ex = cx + Math.cos(angle) * 220;
-    const ey = cy + Math.sin(angle) * 220;
-    this.aimGfx.lineStyle(2, 0xffffff, 0.5);
-    this.aimGfx.lineBetween(cx, cy, ex, ey);
+    const cx = cue.body.position.x;
+    const cy = cue.body.position.y;
+    const dir = { x: Math.cos(shot.angle), y: Math.sin(shot.angle) };
+    const r = BALL.radius;
+    const alpha = shot.cancelled ? 0.25 : 1;
 
-    const pbx = cx - Math.cos(angle) * dist;
-    const pby = cy - Math.sin(angle) * dist;
-    const col = Phaser.Display.Color.GetColor(80 + power * 175, 210 - power * 130, 255 - power * 175);
-    this.aimGfx.lineStyle(3, col, 0.9);
-    this.aimGfx.lineBetween(cx, cy, pbx, pby);
-    this.aimGfx.fillStyle(col, 1);
-    this.aimGfx.fillCircle(pbx, pby, 5);
+    // Projected cue-ball path to the first object ball or cushion.
+    const path = projectCuePath({ x: cx, y: cy }, dir, this.activeTargets(), TABLE, r);
+    this.drawDashed(cx, cy, path.end.x, path.end.y, 0xffffff, 0.55 * alpha);
+    if (path.hit) {
+      this.aimGfx.lineStyle(2, 0xffffff, 0.8 * alpha);
+      this.aimGfx.strokeCircle(path.end.x, path.end.y, r);
+      const c = path.hit.center;
+      this.aimGfx.lineStyle(3, 0xfde68a, 0.85 * alpha);
+      this.aimGfx.lineBetween(c.x, c.y, c.x + path.hit.dir.x * 70, c.y + path.hit.dir.y * 70);
+    } else {
+      this.aimGfx.fillStyle(0xffffff, 0.6 * alpha);
+      this.aimGfx.fillCircle(path.end.x, path.end.y, 3);
+    }
+
+    // Cue stick, pulled back with the drag.
+    const gap = r + 6 + shot.dist * 0.6;
+    const bx = cx - dir.x * gap;
+    const by = cy - dir.y * gap;
+    const ex = bx - dir.x * INPUT.cueLength;
+    const ey = by - dir.y * INPUT.cueLength;
+    this.aimGfx.lineStyle(7, 0x2b1a0e, 0.9 * alpha);
+    this.aimGfx.lineBetween(bx, by, ex, ey);
+    this.aimGfx.lineStyle(5, COLORS.stick, 1 * alpha);
+    this.aimGfx.lineBetween(bx - dir.x * 8, by - dir.y * 8, ex, ey);
+    this.aimGfx.lineStyle(5, COLORS.stickTip, 1 * alpha);
+    this.aimGfx.lineBetween(bx, by, bx - dir.x * 8, by - dir.y * 8);
+
+    // Power bar under the table.
+    const barW = 220;
+    const barX = TABLE.midX - barW / 2;
+    const barY = TABLE.bottom + TABLE.cushionThickness + 28;
+    const col = Phaser.Display.Color.GetColor(80 + shot.power * 175, 210 - shot.power * 130, 255 - shot.power * 175);
+    this.aimGfx.fillStyle(0x000000, 0.5 * alpha);
+    this.aimGfx.fillRoundedRect(barX - 2, barY - 2, barW + 4, 14, 4);
+    this.aimGfx.fillStyle(col, 1 * alpha);
+    this.aimGfx.fillRoundedRect(barX, barY, Math.max(6, barW * shot.power), 10, 3);
+  }
+
+  drawDashed(x1, y1, x2, y2, color, alpha) {
+    const len = Math.hypot(x2 - x1, y2 - y1);
+    if (len < 1) return;
+    const ux = (x2 - x1) / len;
+    const uy = (y2 - y1) / len;
+    const dash = INPUT.guideDash;
+    this.aimGfx.lineStyle(2, color, alpha);
+    for (let d = BALL.radius; d < len; d += dash * 2) {
+      const e = Math.min(d + dash, len);
+      this.aimGfx.lineBetween(x1 + ux * d, y1 + uy * d, x1 + ux * e, y1 + uy * e);
+    }
+  }
+
+  // ---- ball in hand ---------------------------------------------------------
+
+  beginPlacement() {
+    let cue = this.balls.get("cue");
+    if (!cue || !cue.active) {
+      if (cue) this.balls.delete("cue");
+      cue = this.addBall("cue", CUE_START.x, CUE_START.y);
+    }
+    // Lift the cue ball out of the simulation while it is being positioned so
+    // it cannot shove other balls around.
+    this.matter.world.remove(cue.body);
+    cue.view.setAlpha(0.75);
+    this.phase = PHASE.PLACING;
+    this.isDragging = false;
+    this.moveCueForPlacement(cue.body.position.x, cue.body.position.y);
+  }
+
+  moveCueForPlacement(x, y) {
+    if (this.phase !== PHASE.PLACING) return;
+    const cue = this.balls.get("cue");
+    if (!cue) return;
+    const r = BALL.radius;
+    const px = Phaser.Math.Clamp(x, TABLE.left + r + 1, TABLE.right - r - 1);
+    const py = Phaser.Math.Clamp(y, TABLE.top + r + 1, TABLE.bottom - r - 1);
+    this.matter.body.setPosition(cue.body, { x: px, y: py });
+    this.matter.body.setVelocity(cue.body, { x: 0, y: 0 });
+    cue.view.setPosition(px, py);
+    const minGap = r * 2 + 1;
+    this.placementValid = this.activeTargets().every((t) => Math.hypot(t.x - px, t.y - py) >= minGap)
+      && this.pocketPositions().every((p) => Math.hypot(p.x - px, p.y - py) >= TABLE.pocketRadius + r);
+  }
+
+  confirmPlacement() {
+    const cue = this.balls.get("cue");
+    if (!cue || this.phase !== PHASE.PLACING) return;
+    this.matter.world.add(cue.body);
+    Sleeping.set(cue.body, false);
+    this.matter.body.setVelocity(cue.body, { x: 0, y: 0 });
+    cue.view.setAlpha(1);
+    this.placeGfx.clear();
+    this.phase = PHASE.AIM;
+    this.updateHud("");
+  }
+
+  drawPlacement() {
+    this.placeGfx.clear();
+    if (this.phase !== PHASE.PLACING) return;
+    const cue = this.balls.get("cue");
+    if (!cue) return;
+    const { x, y } = cue.body.position;
+    const pulse = 0.5 + 0.5 * Math.sin(this.time.now / 180);
+    this.placeGfx.lineStyle(2, this.placementValid ? 0x4ade80 : 0xf87171, 0.6 + pulse * 0.4);
+    this.placeGfx.strokeCircle(x, y, BALL.radius + 5 + pulse * 2);
   }
 
   // ---- physics / rules -----------------------------------------------------
+
+  // Arcade break: give every racked ball a random kick proportional to the
+  // cue ball's impact speed so the pack opens up instead of only the wing
+  // balls leaving along the rack's straight edges.
+  scatterRack(cueBody) {
+    this.isBreak = false;
+    const impact = cueBody.speed;
+    this.balls.forEach((entry) => {
+      if (!entry.active || entry.id === "cue") return;
+      const angle = Math.random() * Math.PI * 2;
+      const kick = impact * PHYSICS.breakScatter * (0.4 + Math.random() * 0.6);
+      Sleeping.set(entry.body, false);
+      this.matter.body.setVelocity(entry.body, {
+        x: entry.body.velocity.x + Math.cos(angle) * kick,
+        y: entry.body.velocity.y + Math.sin(angle) * kick,
+      });
+    });
+  }
+
+  // Constant per-frame speed loss on top of Matter's exponential air drag,
+  // which is how rolling balls actually slow down on cloth.
+  applyRollingResistance() {
+    this.balls.forEach((entry) => {
+      if (!entry.active || entry.body.isSleeping) return;
+      const speed = entry.body.speed;
+      if (speed <= 0) return;
+      const next = Math.max(0, speed - PHYSICS.rollingDecel);
+      const k = next / speed;
+      this.matter.body.setVelocity(entry.body, { x: entry.body.velocity.x * k, y: entry.body.velocity.y * k });
+    });
+  }
 
   forceStop() {
     this.balls.forEach((entry) => {
@@ -248,6 +504,10 @@ export class GameScene extends Phaser.Scene {
     let rest = true;
     this.balls.forEach((entry) => {
       if (!entry.active) return;
+      if (this.isOffTable(entry)) {
+        this.pocketBall(entry);
+        return;
+      }
       if (entry.body.isSleeping || entry.body.speed < PHYSICS.restThreshold) {
         this.matter.body.setVelocity(entry.body, { x: 0, y: 0 });
       } else {
@@ -257,83 +517,90 @@ export class GameScene extends Phaser.Scene {
     return rest;
   }
 
+  isOffTable(entry) {
+    const { x, y } = entry.body.position;
+    const m = TABLE.cushionThickness + 8;
+    return x < TABLE.left - m || x > TABLE.right + m || y < TABLE.top - m || y > TABLE.bottom + m;
+  }
+
+  pocketBall(entry) {
+    if (!entry.active) return;
+    if (this.phase !== PHASE.SHOOTING) this.beginShot();
+    entry.active = false;
+    this.matter.world.remove(entry.body);
+    entry.view.destroy();
+    this.pocketedThisTurn.push(entry.id);
+    audio.pocket();
+  }
+
   handleCollisions(event) {
     event.pairs.forEach((pair) => {
-      const pocketBody = pair.bodyA.label === "pocket" ? pair.bodyA : (pair.bodyB.label === "pocket" ? pair.bodyB : null);
-      if (!pocketBody) return;
-      const otherBody = pocketBody === pair.bodyA ? pair.bodyB : pair.bodyA;
-      if (!otherBody.label || !otherBody.label.startsWith("ball:")) return;
-      const idStr = otherBody.label.slice(5);
-      const entry = this.balls.get(idStr);
-      if (!entry || !entry.active) return;
-      entry.active = false;
-      this.matter.world.remove(entry.body);
-      entry.view.destroy();
-      this.pocketedThisTurn.push(idStr === "cue" ? "cue" : Number(idStr));
+      const a = pair.bodyA;
+      const b = pair.bodyB;
+      const aBall = typeof a.label === "string" && a.label.startsWith("ball:");
+      const bBall = typeof b.label === "string" && b.label.startsWith("ball:");
+      if (!aBall && !bBall) return;
+
+      const pocketBody = a.label === "pocket" ? a : (b.label === "pocket" ? b : null);
+      if (pocketBody) {
+        const other = pocketBody === a ? b : a;
+        const entry = this.balls.get(other.label.slice(5));
+        if (entry && entry.active) this.pocketBall(entry);
+        return;
+      }
+
+      if (aBall && bBall) {
+        const idA = a.label.slice(5);
+        const idB = b.label.slice(5);
+        if (this.firstContact == null && this.phase === PHASE.SHOOTING && (idA === "cue" || idB === "cue")) {
+          const other = idA === "cue" ? idB : idA;
+          if (other !== "cue") {
+            this.firstContact = Number(other);
+            if (this.isBreak) this.scatterRack(idA === "cue" ? a : b);
+          }
+        }
+        const rvx = a.velocity.x - b.velocity.x;
+        const rvy = a.velocity.y - b.velocity.y;
+        const n = pair.collision && pair.collision.normal ? pair.collision.normal : null;
+        const impact = n ? Math.abs(rvx * n.x + rvy * n.y) : Math.hypot(rvx, rvy);
+        audio.click(impact / PHYSICS.maxShotSpeed);
+        return;
+      }
+
+      const wall = aBall ? b : a;
+      if (wall.label === "cushion" || wall.label === "frame") {
+        const ball = aBall ? a : b;
+        audio.thud(ball.speed / PHYSICS.maxShotSpeed);
+      }
     });
   }
 
-  resolveShot() {
-    if (this.match.gameOver) return;
+  finishShot() {
+    if (this.phase !== PHASE.SHOOTING) return;
+    this.phase = PHASE.AIM;
     const pocketed = this.pocketedThisTurn.splice(0);
-    const player = this.match.turn;
-    const scratched = pocketed.includes("cue");
-    let continueTurn = false;
+    const result = resolveShot(this.match, { pocketed, firstContact: this.firstContact });
+    this.match = result.match;
+    this.firstContact = null;
 
-    if (pocketed.includes(8)) {
-      const suit = this.match.assigned[player];
-      const cleared = suit && this.match.remaining[suit].length === 0;
-      if (suit && cleared && !scratched) {
-        this.endGame(player, `Player ${player} cleared the table and sank the 8-ball!`);
-      } else {
-        const other = player === 1 ? 2 : 1;
-        this.endGame(other, `Player ${player} pocketed the 8-ball early — Player ${other} wins!`);
-      }
+    if (result.winner) {
+      this.endGame(result.winner, result.message);
       return;
     }
-
-    const objectBalls = pocketed.filter((id) => id !== "cue");
-    if (objectBalls.length) {
-      if (!this.match.assigned[player]) {
-        const firstKind = objectBalls[0] < 8 ? "solid" : "stripe";
-        const other = player === 1 ? 2 : 1;
-        this.match.assigned[player] = firstKind;
-        this.match.assigned[other] = firstKind === "solid" ? "stripe" : "solid";
-      }
-      const suit = this.match.assigned[player];
-      objectBalls.forEach((num) => {
-        const kind = num < 8 ? "solid" : "stripe";
-        this.match.remaining[kind] = this.match.remaining[kind].filter((n) => n !== num);
-        if (kind === suit) continueTurn = true;
-      });
-    }
-
-    let message = "";
-    if (scratched) {
-      continueTurn = false;
-      message = "Scratch — cue ball back in play.";
-      this.respotCueBall();
-    }
-
-    if (!continueTurn) this.match.turn = player === 1 ? 2 : 1;
-    this.updateHud(message);
-  }
-
-  respotCueBall() {
-    const x = TABLE.left + (TABLE.right - TABLE.left) * 0.25;
-    const y = TABLE.midY;
-    const cue = this.balls.get("cue");
-    if (cue && cue.active) {
-      this.matter.body.setPosition(cue.body, { x, y });
-      this.matter.body.setVelocity(cue.body, { x: 0, y: 0 });
+    if (result.ballInHand) {
+      this.beginPlacement();
+      this.updateHud(`${result.message} Tap or drag to place the cue ball.`);
       return;
     }
-    this.addBall("cue", x, y, COLORS.cue, false, null, true);
+    if (pocketed.length && !result.continueTurn) hub.event("turn-passed", { player: this.match.turn });
+    this.updateHud(result.message);
   }
 
   endGame(winner, message) {
-    this.match.gameOver = true;
-    this.match.winner = winner;
+    this.phase = PHASE.OVER;
+    this.isDragging = false;
+    this.aimGfx.clear();
+    this.placeGfx.clear();
     this.updateHud(message);
     hub.gameOver(winner);
     this.time.delayedCall(900, () => {
@@ -347,6 +614,8 @@ export class GameScene extends Phaser.Scene {
     const payload = {
       turn: this.match.turn,
       assigned: { ...this.match.assigned },
+      remaining: { solid: [...this.match.remaining.solid], stripe: [...this.match.remaining.stripe] },
+      phase: this.phase,
       message: message || `Player ${this.match.turn}'s turn${suit ? ` (${suit}s)` : ""}`,
       gameOver: this.match.gameOver,
     };

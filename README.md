@@ -1,50 +1,72 @@
-# Vibe Coding Browser Game Template
+# Rokumon Pool
 
-Starter template for browser games and playable prototypes. It keeps the collaboration discipline of the generalist template while adding runnable browser-game profiles, deterministic smoke-test hooks, asset contracts, and evidence-based playtest gates.
+Working-title browser and mobile 8-ball pool. Top-down, physics-driven, local two-player, built on Phaser 4 with Matter physics, TypeScript and Vite. Started from the `vibe-coding-browser-game-template` (`phaser-ts` profile, `games-hub` addon).
 
-Use this when the first meaningful milestone is a playable loop, not a landing page or menu.
+## Play
 
-## Includes
+```bash
+npm install
+npm run dev
+```
 
-- Agent-ready project contract and adapters with a game-specific quality bar (playable-first, protected playfield, responsive input).
-- Preserved agent collaboration layer: model adapters, persona council, specialist personas, session logs, and alignment checks.
-- Game-focused project brief.
-- Persona council and specialist prompts, including a Game Designer / Gameplay Lead persona and a `/playtest` slash command.
-- Playtest checklist (`Templates/PLAYTEST_CHECKLIST.md`), input/control map (`Templates/INPUT_CONTROL_MAP.md`), and asset pipeline conventions (`docs/ASSET_PIPELINE.md`).
-- `TODO.md` task capture, roadmap, setup checklist, and session logs.
-- Drift checks for agent docs.
-- Runnable Phaser + Vite profiles for plain JavaScript and TypeScript.
-- Optional Games Hub, mobile-first, and agentic-operations addons.
-- Architecture, distribution, tuning, save-state, asset-manifest, stage-gate, and playtest-report templates.
-- A reusable Phaser branded-HUD housing helper with authored safe areas,
-  containment auditing, and visual debug guides (`docs/UI_HOUSING.md`).
-- Template CI plus a profile-provided build workflow for initialized Phaser games.
-- Template notes explaining when to use this variant.
+Open the printed URL. Space or tap starts a match.
 
-## First Milestone
+- **Aim and shoot.** Drag anywhere on the table to pull the cue back, release to shoot. The direction and power come from the drag vector, so your finger never has to cover the cue ball. A tap without a drag does nothing.
+- **Aim guide.** While dragging you see the cue stick, the projected cue-ball path, a ghost ball at first contact, the object ball's travel line, and a power bar.
+- **Rules.** Standard 8-ball: the first legal pot assigns suits, pot your suit to keep the table, clear your suit then pot the 8 to win. Potting the 8 early, on a scratch, or on a foul loses.
+- **Fouls.** Scratch, no ball hit, or hitting the wrong ball first (opponent's suit, or the 8 when you are not on it) gives the opponent ball in hand: tap or drag to place the cue ball anywhere that is free.
+- **R** restarts.
 
-A playable vertical slice with:
+## Verify
 
-- player input
-- visible objective
-- success/failure/restart state
-- basic HUD
-- short playtest checklist
+```bash
+npm run verify
+```
 
-## Quality Bar
+Runs the TypeScript check and the Vite build. The pure rules module has its own check:
 
-The first screen must be playable, not a menu pretending a game exists.
+```bash
+node scripts/test-rules.mjs
+```
 
-## First Setup
+## Layout
 
-1. Fill in `docs/PROJECT_BRIEF.md` and choose a browser-game profile.
-2. After creating a repository from this template, run `./scripts/init-browser-game.ps1 -Destination . -Profile phaser-js` from its root.
-3. Add `-GamesHub`, `-MobileFirst`, or `-AgenticOperations` only when the project needs them.
-4. Fill in `Templates/INPUT_CONTROL_MAP.md`, `Templates/GAMEPLAY_CONSTANTS.md`, and `Templates/ASSET_MANIFEST.json`.
-5. Replace starter tasks in `TODO.md`, then run `./scripts/check-agent-docs.ps1`.
-6. Verify the vertical slice with the smoke harness and `Templates/PLAYTEST_REPORT.md`.
-7. Run `./scripts/check-agent-docs.ps1 -Strict` once placeholders are replaced.
+| Path | Purpose |
+|---|---|
+| `src/main.ts` | Phaser game config (Matter at 240 Hz substeps, sleeping on) |
+| `src/game/constants.js` | Table geometry, ball size, physics tuning, colours, rack order |
+| `src/game/rules.js` | Pure 8-ball shot resolution: fouls, suits, win and loss |
+| `src/game/aim.js` | Pure ray projection for the aim guide |
+| `src/scenes/GameScene.js` | Table, balls, input phases (aim, shooting, placing), shot lifecycle |
+| `src/scenes/UIScene.js` | HUD: turn, message, remaining balls per player |
+| `src/systems/audio.js` | Web Audio synth for cue strike, ball clicks, cushion thuds, pockets |
+| `src/systems/debug.js` | `window.__GAME_DEBUG__` deterministic harness |
 
-## Scope
+## Debug harness
 
-This is deliberately a browser-game template. It is optimized for Phaser, Three.js, and React Three Fiber projects; Unity, Godot, Roblox, and Unreal should get sibling templates that share the collaboration materials but respect their different editors and build pipelines.
+In the browser console after a match starts:
+
+```js
+__GAME_DEBUG__.shootCue(angleDeg, power)      // fire the cue ball
+__GAME_DEBUG__.stepFrames(n)                  // advance n simulated frames on virtual time
+__GAME_DEBUG__.teleportToPocket("cue", 0)     // force a scratch
+__GAME_DEBUG__.placeCue(x, y)                 // ball-in-hand placement
+__GAME_DEBUG__.inspect()                      // phase, first contact, ball states
+__GAME_DEBUG__.snapshotState()                // match state
+await __GAME_DEBUG__.snapshot()               // JPEG data URL of the current frame
+```
+
+## Physics notes
+
+Things about Matter that matter here:
+
+1. `Body.setVelocity` does not wake a sleeping body. Every shot wakes the cue ball explicitly, otherwise a ball that fell asleep between turns ignores the shot and the turn silently passes. All balls are woken at shot start as a precaution.
+2. There is no continuous collision detection. The engine runs at 240 Hz (four substeps per frame) so a full-power cue ball cannot bury itself in the rack before contact is detected.
+3. Rolling resistance is a constant per-frame speed loss (`rollingDecel`) plus a little exponential drag (`frictionAir`). Pure exponential drag either kills breaks or leaves balls crawling for many seconds.
+4. A physically pure break into a triangular rack sends the wing balls down the rack's straight edges to the corners and leaves the middle standing (a Newton's cradle). Rack gap, jitter and sleeping state make no measurable difference. The break therefore adds a random scatter kick to the pack on its first contact (`breakScatter`); set it to 0 for a pure simulation.
+
+The shot-settle safety net counts simulated frames, not wall-clock time, so a throttled background tab cannot force-stop a shot early.
+
+## Agent collaboration
+
+See `AGENTS.md` for the vault contract, `docs/` for briefs and pipelines, and `Session Logs/` for dated work records.

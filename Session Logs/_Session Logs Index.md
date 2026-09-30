@@ -25,6 +25,7 @@ Small one-line fixes do not need a session log unless the user asks.
 
 - [Sample - Template Setup](2026-05-03-session-log-vibe-coding-template-optimization.md)
 - [Branded HUD Housing Contract](2026-08-11-session-log-branded-hud-housing-contract.md)
+- [Build Review and Gameplay Upgrade](2026-09-30-session-log-build-review-and-gameplay-upgrade.md)
 
 ## Current Themes
 

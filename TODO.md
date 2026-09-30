@@ -18,16 +18,25 @@ Use this file for actionable game project work. Keep items concrete.
 
 - [x] #task #next Build the first playable vertical slice (rack, drag-to-aim-and-shoot, pocketing, turn/suit/scratch/8-ball rules, win/loss, restart).
 - [x] #task #next Run the deterministic smoke path (`window.__GAME_DEBUG__`) and verify pot/scratch/illegal-8-ball outcomes.
-- [ ] #task #next Human playtest of the real drag-to-shoot control on desktop and a touch device (automated browser drag emulation could not be confirmed reliable in this session — see Session Logs).
+- [x] #task #next Confirm the real drag-to-shoot control with browser mouse input (2026-09-30: real drag works; it exposed the sleeping-cue-ball bug, now fixed).
+- [ ] #task #next Human playtest on a touch device: drag-vector aim, ball-in-hand placement by touch, sound on iOS after first tap.
+- [ ] #task #next Tune feel after the physics changes: `frictionAir`, `restitutionBall`, `maxShotSpeed` in `src/game/constants.js`. Break spread and long-roll settle time are the two things to judge.
 
 ## Backlog
 
-- [ ] #task Fill in `Templates/INPUT_CONTROL_MAP.md` (drag-to-aim-and-shoot, mouse + touch).
+- [ ] #task Fill in `Templates/INPUT_CONTROL_MAP.md` (drag-vector aim and shoot, ball-in-hand placement, mouse + touch).
 - [ ] #task Set tile size, sprite resolution, and virtual resolution in `docs/ASSET_PIPELINE.md`.
 - [ ] #task Run the first playtest with `Templates/PLAYTEST_CHECKLIST.md`.
 - [ ] #task Add deployment or sharing notes.
 - [ ] #task Decide the current stage using `Templates/GAME_STAGE_GATE.md`.
 - [ ] #task Replace procedural table/ball art with a real art pass once the feel is confirmed.
 - [ ] #task Consider call-pocket rules for the 8-ball shot (currently any legal pot after clearing suit wins).
+- [ ] #task Break-shot rule refinements: kitchen-only placement after a break scratch, re-rack or spot when the 8 drops on the break.
+- [ ] #task Cue-ball spin (english) and a draw/follow control, only if playtests ask for it.
+- [ ] #task Single-player mode against a simple AI (pick the easiest pot using `src/game/aim.js`).
+- [ ] #task Mute toggle and a settings surface for sound.
 
 ## Done
+
+- 2026-09-06: playable core (table, rack, rules, debug harness).
+- 2026-09-30: build review fixes and gameplay upgrade (see `CHANGELOG.md`).
