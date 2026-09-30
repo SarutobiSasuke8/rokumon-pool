@@ -56,3 +56,12 @@ Review the 2026-09-06 playable core and apply the improvements worth making.
 - Feel tuning after a human playtest: `rollingDecel`, `frictionAir`, `maxShotSpeed`, `breakScatter`.
 - Break rule refinements (kitchen-only placement after a break scratch, 8 on the break).
 - Uncommitted: all changes are in the working tree on `master`, not committed.
+
+## Appendix, same day: push forward (0.2.0)
+
+Committed the review work as `a1d0c0e`, then built and pushed `9870637`:
+
+- Computer opponent (`src/game/ai.js`, pure): pot evaluation per target and pocket (cut angle cap 78°, pocket approach cap per pocket type, cue and object paths checked with the aim projection, power from a fitted distance-to-speed curve), safety fallback, ball-in-hand placement over a 15x7 grid. Scene side: mode from the menu, "You"/"Computer" names, AI turn scheduled from `update()`, aim-guide preview before the shot, input locked on the computer's turn. Six Node checks in `scripts/test-ai.mjs`. Verified in a deterministic 30-shot game with no console errors.
+- 8 on the break respotted (`isBreak` passed to the rules; 16 rules checks). Mute toggle. Portrait rotate prompt. Mode-aware game over.
+- Rokumon Games hub: manifest `content/games/rokumon-pool.json`, bundle synced, hub catalogue and delivery tests green (bridge capability must be one of score, progress, achievement, event). Hub commit `dd78dfa` touches only those paths; the hub's pre-existing Void Cascade working-tree changes were left alone.
+- Deploy: Pages workflow on manual trigger (repo is private on a free plan). Cloudflare needs `wrangler login`. No URL yet; that gates the phone playtest.
