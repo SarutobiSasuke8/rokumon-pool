@@ -1,80 +1,95 @@
 # Rokumon Pool
 
-Working-title browser and mobile 8-ball pool. Top-down, physics-driven, local two-player, built on Phaser 4 with Matter physics, TypeScript and Vite. Started from the `vibe-coding-browser-game-template` (`phaser-ts` profile, `games-hub` addon).
+A top-down browser pool game with 8-ball rules. You aim by dragging back from the cue ball and shooting on release. Play against a computer opponent or share the screen with a second player.
 
-## Play
+It is part of the Rokumon Games family of small browser games. This repository is private by decision and is not currently deployed.
+
+## Play money only
+
+There is no betting, wagering, currency or real-money mechanic in this game. It is a plain pool game.
+
+## Status
+
+Playable at version 0.2.0. A full table, the 8-ball rules and a computer opponent work. Real desktop mouse input has been tested. Touch devices have not been playtested, and the physics feel constants are still waiting on a human judgement. The deployment route is an open decision (see below).
+
+## Run it
+
+You need Node.js 22 or later (the CI workflow uses 22).
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open the printed URL. Pick **Play vs Computer** (key 1 or Space) or **Two Players** (key 2).
+Vite prints a local address to open in a browser. To try it on a phone on the same network, run `npx vite --host` instead and open the address it prints.
 
-- **Computer opponent.** Picks the best available pot (cut angle, distances, pocket approach, clear cue and object paths), plays a safety when nothing is on, and places the cue ball to set up a pot after your fouls. Its accuracy is `AI.skill` in `src/scenes/GameScene.js`; the planner is pure code in `src/game/ai.js`.
-- **Aim and shoot.** Drag anywhere on the table to pull the cue back, release to shoot. The direction and power come from the drag vector, so your finger never has to cover the cue ball. A tap without a drag does nothing.
-- **Aim guide.** While dragging you see the cue stick, the projected cue-ball path, a ghost ball at first contact, the object ball's travel line, and a power bar.
-- **Rules.** Standard 8-ball: the first legal pot assigns suits, pot your suit to keep the table, clear your suit then pot the 8 to win. Potting the 8 early, on a scratch, or on a foul loses.
-- **Fouls.** Scratch, no ball hit, or hitting the wrong ball first (opponent's suit, or the 8 when you are not on it) gives the opponent ball in hand: tap or drag to place the cue ball anywhere that is free.
-- **Break.** The 8-ball dropping on the break is respotted, not a loss.
-- **R** restarts, **M** mutes (also the button bottom-right; the choice is remembered in this browser). Phones in portrait get a rotate prompt.
+| Command | What it does |
+| --- | --- |
+| `npm run build` | Type checks with `tsc --noEmit`, then builds with Vite into `dist/`. |
+| `npm run preview` | Serves the built `dist/` folder locally. |
+| `npm run verify` | Runs the same checks as `build`. This is what CI runs. |
+| `node scripts/test-rules.mjs` | Node checks for the pure 8-ball rules module. |
+| `node scripts/test-ai.mjs` | Node checks for the computer opponent's shot planner. |
 
-## Verify
+## How to play
 
-```bash
-npm run verify
-```
+- On the title screen choose Play vs Computer (click it, press 1, or press Space) or Two Players (click it or press 2).
+- Drag anywhere on the table to pull the cue back, then release to shoot. A tap on its own does nothing. The pull-back distance sets the power.
+- While you drag, the game shows a cue stick, the projected path, a ghost ball, the line the object ball will take and a power bar.
+- Standard 15-ball rack with 6 pockets. The first legal pot assigns suits. Pot all of your suit, then pot the 8-ball, to win.
+- Potting your own suit lets you continue. A foul gives your opponent ball in hand. Fouls are a scratch, hitting no ball, or hitting the wrong ball first.
+- Potting the 8-ball early loses the game. The 8-ball dropping on the break is respotted rather than counted as a loss.
+- There is no call-pocket rule: any legal pot of the 8-ball after clearing your suit wins.
+- Solid and striped balls differ by pattern as well as colour, so suits can be told apart without relying on colour.
 
-Runs the TypeScript check and the Vite build. The pure modules have their own checks:
+## Controls
 
-```bash
-node scripts/test-rules.mjs
-node scripts/test-ai.mjs
-```
+| Input | Action |
+| --- | --- |
+| Mouse drag or touch drag, then release | Aim and shoot. |
+| 1, 2 or Space on the title screen | Start vs Computer (1 or Space) or Two Players (2). |
+| R | Restart. |
+| M | Mute or unmute (there is also a button in the HUD). |
+| Space on the game-over screen | Play again. |
+| Esc on the game-over screen | Return to the title screen. |
 
-## Deploy
+## How it works
 
-`.github/workflows/pages.yml` deploys `dist/` to GitHub Pages on manual trigger. It needs the repository to be public (or a paid plan) and Pages enabled with "GitHub Actions" as the source. Alternatively `npx wrangler pages deploy dist` after `wrangler login`. The game is also catalogued in the Rokumon Games hub (`content/games/rokumon-pool.json` there; refresh the bundle with `npm run sync:game -- rokumon-pool` in the hub).
+- Physics is Phaser's Matter integration, run at 240 Hz substeps, with constant rolling resistance plus light drag and a top speed cap.
+- A turn only resolves once every ball is at rest, with a frame-counted shot timeout as a safety net so a turn cannot hang.
+- The break adds a tunable scatter kick, because a perfectly modelled rack behaves like a Newton's cradle.
+- The 8-ball rules are a pure module in `src/game/rules.js`, kept separate from rendering so it can be checked in Node.
+- The computer opponent is a pure planner in `src/game/ai.js`. It scores pots by cut angle, distance, pocket approach and clear paths, falls back to a safety shot, and places the cue ball after fouls so as to set up a pot.
+- Sound is synthesised with the Web Audio API.
+- Tuning values (`rollingDecel`, `frictionAir`, `maxShotSpeed`, `breakScatter` and others) live in `src/game/constants.js`.
+- A small `postMessage` bridge in `src/integrations/hub.js` can report ready, score and game-over events to a host page.
 
-## Layout
+## Tech
 
-| Path | Purpose |
-|---|---|
-| `src/main.ts` | Phaser game config (Matter at 240 Hz substeps, sleeping on) |
-| `src/game/constants.js` | Table geometry, ball size, physics tuning, colours, rack order |
-| `src/game/rules.js` | Pure 8-ball shot resolution: fouls, suits, win and loss |
-| `src/game/aim.js` | Pure ray projection for the aim guide |
-| `src/game/ai.js` | Pure computer opponent: pot evaluation, safety, ball-in-hand placement |
-| `src/scenes/GameScene.js` | Table, balls, input phases (aim, shooting, placing), shot lifecycle |
-| `src/scenes/UIScene.js` | HUD: turn, message, remaining balls per player |
-| `src/systems/audio.js` | Web Audio synth for cue strike, ball clicks, cushion thuds, pockets |
-| `src/systems/debug.js` | `window.__GAME_DEBUG__` deterministic harness |
+- [Phaser](https://phaser.io/) 4 with Matter physics
+- Vite 8 and TypeScript for the entry point and type checking. Most game modules are plain JavaScript.
+- Node scripts for the rules and AI checks. No other test framework is configured.
 
-## Debug harness
+The repository ships no image or audio assets.
 
-In the browser console after a match starts:
+## Project layout
 
-```js
-__GAME_DEBUG__.shootCue(angleDeg, power)      // fire the cue ball
-__GAME_DEBUG__.stepFrames(n)                  // advance n simulated frames on virtual time
-__GAME_DEBUG__.teleportToPocket("cue", 0)     // force a scratch
-__GAME_DEBUG__.placeCue(x, y)                 // ball-in-hand placement
-__GAME_DEBUG__.inspect()                      // phase, first contact, ball states
-__GAME_DEBUG__.snapshotState()                // match state
-await __GAME_DEBUG__.snapshot()               // JPEG data URL of the current frame
-```
+- `src/main.ts`: Phaser game setup.
+- `src/scenes/`: boot, menu, game, HUD and game-over scenes.
+- `src/game/`: rules, AI, aiming, constants and match state.
+- `src/systems/`: input, audio and debug helpers.
+- `src/ui/`: HUD housing helper.
+- `scripts/`: the Node checks above plus project verification scripts.
+- `docs/`, `Templates/`, `personas/`, `profiles/`, `addons/`, `Session Logs/`, `AGENTS.md` and the other agent files: the working agreement and notes from the browser game template this project started from. See `TEMPLATE_NOTES.md`.
+- `.github/workflows/pages.yml`: a manual-only GitHub Pages deployment. It cannot succeed while the repository is private on the free plan, and the repository visibility is deliberately left private.
 
-## Physics notes
+## Open work
 
-Things about Matter that matter here:
+- A human playtest on a touch device: drag aim, ball-in-hand placement by touch and iOS audio unlock.
+- Judging and tuning the physics feel constants.
+- Easy, Normal and Hard computer difficulty levels.
+- Choosing a deployment route that does not require making the repository public.
 
-1. `Body.setVelocity` does not wake a sleeping body. Every shot wakes the cue ball explicitly, otherwise a ball that fell asleep between turns ignores the shot and the turn silently passes. All balls are woken at shot start as a precaution.
-2. There is no continuous collision detection. The engine runs at 240 Hz (four substeps per frame) so a full-power cue ball cannot bury itself in the rack before contact is detected.
-3. Rolling resistance is a constant per-frame speed loss (`rollingDecel`) plus a little exponential drag (`frictionAir`). Pure exponential drag either kills breaks or leaves balls crawling for many seconds.
-4. A physically pure break into a triangular rack sends the wing balls down the rack's straight edges to the corners and leaves the middle standing (a Newton's cradle). Rack gap, jitter and sleeping state make no measurable difference. The break therefore adds a random scatter kick to the pack on its first contact (`breakScatter`); set it to 0 for a pure simulation.
+## Licence
 
-The shot-settle safety net counts simulated frames, not wall-clock time, so a throttled background tab cannot force-stop a shot early.
-
-## Agent collaboration
-
-See `AGENTS.md` for the vault contract, `docs/` for briefs and pipelines, and `Session Logs/` for dated work records.
+See `LICENSE`.
