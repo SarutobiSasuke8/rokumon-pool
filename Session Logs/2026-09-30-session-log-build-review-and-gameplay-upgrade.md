@@ -65,3 +65,12 @@ Committed the review work as `a1d0c0e`, then built and pushed `9870637`:
 - 8 on the break respotted (`isBreak` passed to the rules; 16 rules checks). Mute toggle. Portrait rotate prompt. Mode-aware game over.
 - Rokumon Games hub: manifest `content/games/rokumon-pool.json`, bundle synced, hub catalogue and delivery tests green (bridge capability must be one of score, progress, achievement, event). Hub commit `dd78dfa` touches only those paths; the hub's pre-existing Void Cascade working-tree changes were left alone.
 - Deploy: Pages workflow on manual trigger (repo is private on a free plan). Cloudflare needs `wrangler login`. No URL yet; that gates the phone playtest.
+
+## Appendix, 2026-10-08: computer difficulty (#4)
+
+Branch `claude/ai-difficulty` (Claude Code, ASV ticket):
+
+- Easy, Normal and Hard from one table, `AI_DIFFICULTY` in `src/game/constants.js`. Easy also picks a weaker legal pot and a looser ball-in-hand spot some of the time; Normal is byte-for-byte the old planner; Hard has tighter aim. Menu chips (tap, click, left and right arrows), remembered in `localStorage` under `rokumon-pool:difficulty`, carried through both restarts, shown in the HUD and on game over.
+- `planShot` and `planPlacement` take an optional `random`; `scripts/test-ai.mjs` now has 11 checks, including seeded angle-error ordering and Normal matching the original planner.
+- Testing note: the pane's synthetic clicks and key presses did not reach Phaser this time (the loop was barely ticking). Dispatching DOM events and stepping `game.step` by hand worked.
+- Open: human playtest of each level, especially touch, then retune the table.

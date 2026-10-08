@@ -1,6 +1,6 @@
 export function installDebug(scene, getState) {
   window.__GAME_DEBUG__ = {
-    startGame: () => scene.scene.start("Game"),
+    startGame: (data) => scene.scene.start("Game", data),
     getScene: () => scene,
     // Resolves to a downscaled JPEG data URL of the current frame.
     snapshot: (width = 640, quality = 0.75) => new Promise((resolve) => {
@@ -27,6 +27,9 @@ export function installDebug(scene, getState) {
     placeCue: (x, y) => { scene.moveCueForPlacement?.(x, y); if (scene.placementValid) scene.confirmPlacement?.(); return scene.phase; },
     inspect: () => ({
       phase: scene.phase,
+      mode: scene.mode,
+      difficulty: scene.difficulty,
+      aiTuning: scene.aiTuning?.(),
       waitingForRest: scene.waitingForRest,
       isDragging: scene.isDragging,
       firstContact: scene.firstContact,

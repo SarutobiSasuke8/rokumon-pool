@@ -4,6 +4,15 @@ All notable changes to this project should be documented here.
 
 ## Unreleased
 
+### 2026-10-08 computer difficulty (#4)
+
+Added
+
+- Easy, Normal and Hard for the computer opponent, chosen on the menu by tap, click or the left and right arrow keys, and remembered per browser like mute (falls back to Normal if storage is unavailable). The level carries through R restarts and the game-over restart, and shows in the HUD ("Computer (Hard)") and on the game-over screen.
+- One tuning table, `AI_DIFFICULTY` in `src/game/constants.js`. Easy aims looser (skill 0.35), takes a weaker legal pot 45% of the time and puts ball in hand on a workable but not best spot 60% of the time. Normal is unchanged (skill 0.62, best shot, best placement). Hard takes the best shot with tighter aim and power (skill 0.85).
+- `planShot` and `planPlacement` accept an optional `random` source, so `scripts/test-ai.mjs` checks the levels with a seeded generator (11 checks: Hard has a smaller mean angle error than Normal, Normal smaller than Easy; Normal matches the original planner exactly).
+- Debug harness: `startGame(data)` takes scene data and `inspect()` reports mode, difficulty and AI tuning.
+
 ### 2026-09-30 push forward (0.2.0)
 
 Added

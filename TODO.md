@@ -35,7 +35,8 @@ Use this file for actionable game project work. Keep items concrete.
 - [ ] #task Cue-ball spin (english) and a draw/follow control, only if playtests ask for it.
 - [x] #task Single-player mode against a computer opponent (`src/game/ai.js`, 2026-09-30).
 - [x] #task Mute toggle (M key + HUD button, 2026-09-30).
-- [ ] #task AI difficulty levels (Easy/Normal/Hard) exposed on the menu; `AI.skill` is the only knob today.
+- [x] #task AI difficulty levels (Easy/Normal/Hard) exposed on the menu (2026-10-08, #4; tuning in `AI_DIFFICULTY`).
+- [ ] #task Human playtest of the three difficulty levels on desktop and touch; retune `AI_DIFFICULTY` if Easy still wins too often or Hard feels unbeatable.
 - [ ] #task Deploy: make the repo public and run the Pages workflow, or `wrangler login` and deploy `dist/` to Cloudflare Pages. Then a phone playtest.
 - [ ] #task Hub media for the Rokumon Games catalogue entry: cover, hero, logo, screenshots (manifest has them as null).
 

@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { TABLE, BALL, PHYSICS, INPUT, COLORS, RACK_ORDER, ballColor } from "../game/constants.js";
+import { TABLE, BALL, PHYSICS, INPUT, COLORS, RACK_ORDER, ballColor, AI_DIFFICULTY, resolveDifficulty } from "../game/constants.js";
 import { createMatchState, snapshotMatch } from "../game/state.js";
 import { resolveShot } from "../game/rules.js";
 import { projectCuePath } from "../game/aim.js";
@@ -20,13 +20,15 @@ export const PHASE = Object.freeze({
 
 const CUE_START = Object.freeze({ x: TABLE.left + (TABLE.right - TABLE.left) * 0.25, y: TABLE.midY });
 
-const AI = Object.freeze({ player: 2, skill: 0.62, thinkMs: 800, previewMs: 700 });
+// Strength (skill, shot choice, placement) comes from AI_DIFFICULTY.
+const AI = Object.freeze({ player: 2, thinkMs: 800, previewMs: 700 });
 
 export class GameScene extends Phaser.Scene {
   constructor() { super("Game"); }
 
   init(data) {
     this.mode = data?.mode === "ai" ? "ai" : "pvp";
+    this.difficulty = resolveDifficulty(data?.difficulty);
     this.names = this.mode === "ai" ? { 1: "You", 2: "Computer" } : { 1: "Player 1", 2: "Player 2" };
   }
 
@@ -97,9 +99,19 @@ export class GameScene extends Phaser.Scene {
       bounds: TABLE,
       radius: BALL.radius,
       maxShotSpeed: PHYSICS.maxShotSpeed,
-      skill: AI.skill,
+      ...this.aiTuning(),
       headSpot: CUE_START,
     };
+  }
+
+  aiTuning() {
+    const { skill, weakShotChance, loosePlacement } = AI_DIFFICULTY[this.difficulty];
+    return { skill, weakShotChance, loosePlacement };
+  }
+
+  // Data that restarts this match in the same mode and difficulty.
+  restartData() {
+    return this.mode === "ai" ? { mode: this.mode, difficulty: this.difficulty } : { mode: this.mode };
   }
 
   // Called from update() while it is the computer's turn. Placement is
@@ -139,7 +151,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     if (this.restartKey.restartPressed()) {
-      this.scene.restart({ mode: this.mode });
+      this.scene.restart(this.restartData());
       return;
     }
 
@@ -688,7 +700,7 @@ export class GameScene extends Phaser.Scene {
     hub.gameOver(winner);
     this.time.delayedCall(900, () => {
       this.scene.stop("UI");
-      this.scene.start("GameOver", { winner, message: this.withNames(message), mode: this.mode, names: this.names });
+      this.scene.start("GameOver", { winner, message: this.withNames(message), ...this.restartData(), names: this.names });
     });
   }
 
@@ -717,6 +729,7 @@ export class GameScene extends Phaser.Scene {
       remaining: { solid: [...this.match.remaining.solid], stripe: [...this.match.remaining.stripe] },
       phase: this.phase,
       mode: this.mode,
+      difficultyLabel: this.mode === "ai" ? AI_DIFFICULTY[this.difficulty].label : null,
       names: { ...this.names },
       message: this.withNames(message || `Player ${this.match.turn}'s turn${suit ? ` (${suit}s)` : ""}`),
       gameOver: this.match.gameOver,
