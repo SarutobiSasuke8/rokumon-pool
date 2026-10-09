@@ -27,9 +27,11 @@ Vite prints a local address to open in a browser. To try it on a phone on the sa
 | --- | --- |
 | `npm run build` | Type checks with `tsc --noEmit`, then builds with Vite into `dist/`. |
 | `npm run preview` | Serves the built `dist/` folder locally. |
-| `npm run verify` | Runs the same checks as `build`. This is what CI runs. |
+| `npm test` | Runs the Node checks below (rules, computer opponent, HUD labels). |
+| `npm run verify` | Runs `build`, then `npm test`. This is what CI runs. |
 | `node scripts/test-rules.mjs` | Node checks for the pure 8-ball rules module. |
 | `node scripts/test-ai.mjs` | Node checks for the computer opponent's shot planner. |
+| `node scripts/test-labels.mjs` | Node checks for the player-facing name and turn labels. |
 
 ## How to play
 
