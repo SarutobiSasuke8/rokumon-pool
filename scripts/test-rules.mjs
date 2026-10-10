@@ -128,4 +128,90 @@ test("input state is never mutated", () => {
   assert.equal(JSON.stringify(m), before);
 });
 
+// ---- terminal states and restart ------------------------------------------
+
+test("8-ball early ends the game as a loss for the shooter (player 1 shooting)", () => {
+  const m = withSuits("solid");
+  const r = resolveShot(m, { pocketed: [8], firstContact: 1 });
+  assert.equal(r.match.gameOver, true);
+  assert.equal(r.winner, 2);
+  assert.equal(r.match.winner, 2);
+  assert.equal(r.continueTurn, false);
+  assert.equal(r.ballInHand, false);
+  assert.match(r.message, /^Player 1 pocketed the 8-ball early\. Player 2 wins!$/);
+});
+
+test("8-ball early ends the game as a loss for the shooter (player 2 shooting)", () => {
+  const m = withSuits("solid");
+  m.turn = 2;
+  const r = resolveShot(m, { pocketed: [8], firstContact: 9 });
+  assert.equal(r.match.gameOver, true);
+  assert.equal(r.winner, 1);
+  assert.equal(r.match.winner, 1);
+});
+
+test("8-ball early on an open table (after the break) loses", () => {
+  const r = resolveShot(fresh(), { pocketed: [8, 4], firstContact: 4 });
+  assert.equal(r.match.gameOver, true);
+  assert.equal(r.winner, 2);
+});
+
+test("8-ball early loses even when an own ball drops legally on the same shot", () => {
+  const r = resolveShot(withSuits("solid"), { pocketed: [2, 8], firstContact: 2 });
+  assert.equal(r.winner, 2);
+  assert.equal(r.continueTurn, false, "no stay-at-table after the game is over");
+});
+
+test("8-ball early with a scratch is still a loss, not a ball-in-hand foul", () => {
+  const r = resolveShot(withSuits("solid"), { pocketed: [8, "cue"], firstContact: 1 });
+  assert.equal(r.winner, 2);
+  assert.equal(r.match.gameOver, true);
+  assert.equal(r.ballInHand, false);
+});
+
+test("scratching while legally potting the 8 loses, with game over and a foul message", () => {
+  const m = withSuits("stripe");
+  m.remaining.stripe = [];
+  const r = resolveShot(m, { pocketed: ["cue", 8], firstContact: 8 });
+  assert.equal(r.match.gameOver, true);
+  assert.equal(r.winner, 2);
+  assert.equal(r.foulReason, "scratch");
+  assert.equal(r.ballInHand, false);
+  assert.match(r.message, /on a foul/);
+});
+
+test("8-ball on the break with no other pot: respotted, turn passes, table stays open", () => {
+  const r = resolveShot(fresh(), { pocketed: [8], firstContact: 1, isBreak: true });
+  assert.equal(r.winner, null);
+  assert.equal(r.match.gameOver, false);
+  assert.equal(r.respotEight, true);
+  assert.equal(r.foulReason, null);
+  assert.equal(r.match.turn, 2);
+  assert.deepEqual(r.match.assigned, { 1: null, 2: null });
+});
+
+test("restart from a terminal state gives a fresh, independent, legal match", () => {
+  const initial = JSON.stringify(fresh());
+  const lost = resolveShot(withSuits("solid"), { pocketed: [8, 1, "cue"], firstContact: 1 }).match;
+  assert.equal(lost.gameOver, true);
+
+  // GameScene.create() (R key, or play again from GameOver) calls createMatchState().
+  const restarted = createMatchState();
+  assert.equal(JSON.stringify(restarted), initial);
+  assert.equal(restarted.gameOver, false);
+  assert.equal(restarted.winner, null);
+  assert.equal(restarted.turn, 1);
+  assert.equal(legalFirstTarget(restarted, 1), "open");
+
+  // Not sharing arrays with the finished match or with any other match.
+  lost.remaining.solid.length = 0;
+  restarted.remaining.stripe.pop();
+  assert.equal(JSON.stringify(createMatchState()), initial);
+
+  // The first shot of the new match is a break again: the 8 is respotted, not a loss.
+  const brk = resolveShot(restarted, { pocketed: [8], firstContact: 1, isBreak: true });
+  assert.equal(brk.match.gameOver, false);
+  assert.equal(brk.respotEight, true);
+});
+
 console.log(`\n${passed} rules checks passed`);

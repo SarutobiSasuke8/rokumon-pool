@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { TABLE, BALL, PHYSICS, INPUT, COLORS, RACK_ORDER, ballColor, AI_DIFFICULTY, resolveDifficulty } from "../game/constants.js";
 import { createMatchState, snapshotMatch } from "../game/state.js";
 import { resolveShot } from "../game/rules.js";
+import { withNames as formatNames } from "../game/labels.js";
 import { projectCuePath } from "../game/aim.js";
 import { planShot, planPlacement } from "../game/ai.js";
 import { createRestartKey } from "../systems/input.js";
@@ -74,20 +75,7 @@ export class GameScene extends Phaser.Scene {
   // Player-facing text. The rules module speaks in "Player N"; the scene
   // swaps in the mode's names ("You", "Computer").
   withNames(text) {
-    let out = String(text || "");
-    [1, 2].forEach((p) => {
-      const name = this.names[p];
-      if (name === "You") {
-        out = out
-          .replace(new RegExp(`Player ${p}'s turn`, "g"), "Your turn")
-          .replace(new RegExp(`Player ${p} pots and stays`, "g"), "You pot and stay")
-          .replace(new RegExp(`Player ${p} has ball`, "g"), "You have ball")
-          .replace(new RegExp(`Player ${p} wins`, "g"), "You win")
-          .replace(new RegExp(`Player ${p} breaks`, "g"), "You break");
-      }
-      out = out.replace(new RegExp(`Player ${p}`, "g"), name);
-    });
-    return out;
+    return formatNames(text, this.names);
   }
 
   aiContext() {

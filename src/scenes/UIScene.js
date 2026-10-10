@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { ballColor } from "../game/constants.js";
 import { audio } from "../systems/audio.js";
+import { turnLabel } from "../game/labels.js";
 
 const MINI_R = 6;
 
@@ -26,7 +27,7 @@ export class UIScene extends Phaser.Scene {
     const onUpdate = (data) => {
       const names = data.names || { 1: "Player 1", 2: "Player 2" };
       const suit = data.assigned[data.turn];
-      this.turnText.setText(`${names[data.turn]}'s turn${suit ? ` · ${suit}s` : ""}`);
+      this.turnText.setText(turnLabel(names, data.turn, suit));
       this.msgText.setText(data.message || "");
       this.drawRemaining(data, names);
     };
