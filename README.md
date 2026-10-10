@@ -33,7 +33,7 @@ Vite prints a local address to open in a browser. To try it on a phone on the sa
 
 ## How to play
 
-- On the title screen choose Play vs Computer (click it, press 1, or press Space) or Two Players (click it or press 2).
+- On the title screen choose Play vs Computer (click it, press 1, or press Space) or Two Players (click it or press 2). Pick the computer's difficulty (Easy, Normal or Hard) by tapping it or with the left and right arrow keys; the choice is remembered.
 - Drag anywhere on the table to pull the cue back, then release to shoot. A tap on its own does nothing. The pull-back distance sets the power.
 - While you drag, the game shows a cue stick, the projected path, a ghost ball, the line the object ball will take and a power bar.
 - Standard 15-ball rack with 6 pockets. The first legal pot assigns suits. Pot all of your suit, then pot the 8-ball, to win.

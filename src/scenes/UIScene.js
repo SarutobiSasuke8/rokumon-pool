@@ -36,7 +36,9 @@ export class UIScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.game.events.off("match-update", onUpdate));
   }
 
-  drawRemaining(data, names) {
+  drawRemaining(data, rawNames) {
+    // In solo mode the computer's row carries its difficulty: "Computer (Hard)".
+    const names = data.difficultyLabel ? { ...rawNames, 2: `${rawNames[2]} (${data.difficultyLabel})` } : rawNames;
     this.ballGfx.clear();
     [1, 2].forEach((player, row) => {
       const label = row === 0 ? this.p1Label : this.p2Label;

@@ -48,6 +48,26 @@ export const INPUT = Object.freeze({
   cueLength: 180,
 });
 
+// Computer opponent strength, chosen on the menu. One table so tuning lives
+// in one place.
+//   skill:          0..1, scales aim and power error (higher is tighter)
+//   weakShotChance: chance of taking a weaker legal pot instead of the best
+//   loosePlacement: chance of ball in hand going to a workable spot that is
+//                   not the best one found
+// Normal is the original single-strength opponent (skill 0.62, best shot,
+// best placement) and must stay that way.
+export const AI_DIFFICULTY = Object.freeze({
+  easy: Object.freeze({ label: "Easy", skill: 0.35, weakShotChance: 0.45, loosePlacement: 0.6 }),
+  normal: Object.freeze({ label: "Normal", skill: 0.62, weakShotChance: 0, loosePlacement: 0 }),
+  hard: Object.freeze({ label: "Hard", skill: 0.85, weakShotChance: 0, loosePlacement: 0 }),
+});
+export const DIFFICULTY_ORDER = Object.freeze(["easy", "normal", "hard"]);
+export const DEFAULT_DIFFICULTY = "normal";
+
+export function resolveDifficulty(key) {
+  return Object.hasOwn(AI_DIFFICULTY, key) ? key : DEFAULT_DIFFICULTY;
+}
+
 export const COLORS = Object.freeze({
   cloth: 0x0e6b3a,
   clothEdge: 0x0a5a30,
