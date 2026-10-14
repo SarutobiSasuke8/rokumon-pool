@@ -64,6 +64,8 @@ export class GameScene extends Phaser.Scene {
 
     this.scene.launch("UI");
     hub.ready();
+    hub.score(0);
+    this.hubStartedAt = performance.now();
     this.updateHud(`${this.names[1]} break${this.mode === "ai" ? "" : "s"}. Drag anywhere on the table to aim, release to shoot.`);
     installDebug(this, () => snapshotMatch(this.match));
   }
@@ -663,6 +665,7 @@ export class GameScene extends Phaser.Scene {
     const pocketed = this.pocketedThisTurn.splice(0);
     const result = resolveShot(this.match, { pocketed, firstContact: this.firstContact, isBreak: this.currentShotIsBreak });
     this.match = result.match;
+    hub.score(14 - this.match.remaining.solid.length - this.match.remaining.stripe.length);
     this.firstContact = null;
 
     if (result.winner) {
@@ -675,17 +678,20 @@ export class GameScene extends Phaser.Scene {
       this.updateHud(this.isAiTurn() ? result.message : `${result.message} Tap or drag to place the cue ball.`);
       return;
     }
-    if (pocketed.length && !result.continueTurn) hub.event("turn-passed", { player: this.match.turn });
     this.updateHud(result.message);
   }
 
   endGame(winner, message) {
+    if (this.phase === PHASE.OVER) return;
     this.phase = PHASE.OVER;
     this.isDragging = false;
     this.aimGfx.clear();
     this.placeGfx.clear();
     this.updateHud(message);
-    hub.gameOver(winner);
+    const durationMs = Math.round(performance.now() - this.hubStartedAt);
+    const score = 14 - this.match.remaining.solid.length - this.match.remaining.stripe.length;
+    hub.gameOver(score, durationMs);
+    hub.event("match-won", { winner, mode: this.mode, seconds: Math.round(durationMs / 1000) });
     this.time.delayedCall(900, () => {
       this.scene.stop("UI");
       this.scene.start("GameOver", { winner, message: this.withNames(message), ...this.restartData(), names: this.names });

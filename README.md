@@ -95,3 +95,11 @@ The repository ships no image or audio assets.
 ## Licence
 
 See `LICENSE`.
+
+## Rokumon hub events
+
+The optional `/hub-bridge.js` SDK receives ready, score (object balls legally removed by both sides, 0 to 14), and gameOver once at match end with duration. Calls remain safe without the SDK. Static `dist/` assets use relative URLs.
+
+- `match-won`: winner (number, 1 or 2), mode (string), seconds (number).
+
+Run `npm test` and `node scripts/hub-smoke.mjs` after building to check forwarding and standalone play.
