@@ -33,3 +33,5 @@ Small one-line fixes do not need a session log unless the user asks.
 - Session logs preserve decisions, rationale, verification, and handoff context.
 - Strict validation should fail until a newly generated project replaces setup placeholders.
 - Branded raster UI needs asset-authored safe areas plus geometric and visual QA.
+
+- [[2026-10-15 - Rack validity and pure rules tests]]

@@ -103,3 +103,7 @@ The optional `/hub-bridge.js` SDK receives ready, score (object balls legally re
 - `match-won`: winner (number, 1 or 2), mode (string), seconds (number).
 
 Run `npm test` and `node scripts/hub-smoke.mjs` after building to check forwarding and standalone play.
+
+## Automated rule coverage
+
+`npm test` runs 4 Vitest rack checks, the existing 24 shot/turn/foul/win checks, 11 AI checks, 7 HUD-label checks and optional SDK forwarding checks. `npm run build` typechecks and bundles the game. The rack tests cover triangular rows, unique ball IDs, the centre 8-ball, suit counts and initial remaining balls. Physics contacts and the live pocket sensors remain browser/playtest work.

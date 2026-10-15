@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "node scripts/test-rules.mjs && node scripts/test-ai.mjs && node scripts/test-labels.mjs && node scripts/test-hub.mjs",
+    "test": "vitest run && node scripts/test-rules.mjs && node scripts/test-ai.mjs && node scripts/test-labels.mjs && node scripts/test-hub.mjs",
     "verify": "npm run build && npm test"
   },
   "dependencies": {
@@ -16,6 +16,7 @@
   "devDependencies": {
     "playwright": "^1.63.0",
     "typescript": "^5.0.0",
-    "vite": "^8.0.0"
+    "vite": "^8.0.0",
+    "vitest": "^3.2.4"
   }
 }
