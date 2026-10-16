@@ -51,6 +51,7 @@ Vite prints a local address to open in a browser. To try it on a phone on the sa
 | Mouse drag or touch drag, then release | Aim and shoot. |
 | 1, 2 or Space on the title screen | Start vs Computer (1 or Space) or Two Players (2). |
 | R | Restart. |
+| P or Esc during a match | Pause or resume. The match also pauses by itself when the tab is hidden or the window loses focus; tap, click or press Space to resume. |
 | M | Mute or unmute (there is also a button in the HUD). |
 | Space on the game-over screen | Play again. |
 | Esc on the game-over screen | Return to the title screen. |

@@ -4,6 +4,12 @@ All notable changes to this project should be documented here.
 
 ## Unreleased
 
+### 2026-10-16 beta polish
+
+Added
+
+- The match pauses when the tab is hidden or the window loses focus (P or Esc by hand too), a loading line while the bundle loads, a meta description and an inline favicon, and the canvas is centred on tall screens with page scroll and overscroll locked.
+
 ### 2026-10-08 computer difficulty (#4)
 
 Added

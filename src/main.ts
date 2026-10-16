@@ -26,6 +26,9 @@ const game = new Phaser.Game({
   scene: [BootScene, MenuScene, GameScene, UIScene, GameOverScene],
 });
 
+// Drop the static loading line once Phaser has booted.
+game.events.once(Phaser.Core.Events.READY, () => document.getElementById("loading")?.remove());
+
 // Dev-only handle so automated checks can drive the game loop (game.step)
 // even when the tab is hidden and requestAnimationFrame is paused.
 if (import.meta.env.DEV) (window as unknown as { __PHASER_GAME__: Phaser.Game }).__PHASER_GAME__ = game;
