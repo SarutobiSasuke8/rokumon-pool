@@ -130,6 +130,14 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  // Drop a half-finished aim when the match pauses: the release may never
+  // arrive, and a stale drag would block the next one.
+  cancelDrag() {
+    this.isDragging = false;
+    this.dragStart = null;
+    this.dragCurrent = null;
+  }
+
   // Kept for the debug harness and older callers.
   get waitingForRest() { return this.phase === PHASE.SHOOTING; }
 

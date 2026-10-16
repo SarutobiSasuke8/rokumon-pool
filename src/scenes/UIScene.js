@@ -24,6 +24,41 @@ export class UIScene extends Phaser.Scene {
     this.input.keyboard.on("keydown-M", () => { audio.toggleMuted(); refreshMute(); });
     refreshMute();
 
+    // Pause overlay: the Game scene pauses when the tab is hidden or the
+    // window loses focus, so a rolling shot or the computer's turn never
+    // plays out unseen. It cannot take input while paused, so this scene
+    // owns resume.
+    const overlay = this.add.container(0, 0, [
+      this.add.rectangle(480, 270, 960, 540, 0x080b14, 0.78),
+      this.add.text(480, 236, "PAUSED", { fontFamily: "sans-serif", fontSize: "44px", color: "#ffffff" }).setOrigin(0.5),
+      this.add.text(480, 296, "Tap, click or press Space to resume", { fontFamily: "sans-serif", fontSize: "18px", color: "#93c5fd" }).setOrigin(0.5),
+    ]).setDepth(100).setVisible(false);
+    this.children.bringToTop(this.muteButton);
+    const isPaused = () => this.scene.isPaused("Game");
+    const pause = () => {
+      const game = this.scene.get("Game");
+      if (!this.scene.isActive("Game") || game.match?.gameOver || game.phase === "over") return;
+      game.cancelDrag?.();
+      this.scene.pause("Game");
+      overlay.setVisible(true);
+    };
+    const resume = () => {
+      if (!isPaused()) return;
+      audio.unlock(); // Mobile browsers can suspend the AudioContext while the tab is hidden.
+      overlay.setVisible(false);
+      this.scene.resume("Game");
+    };
+    this.game.events.on(Phaser.Core.Events.HIDDEN, pause);
+    this.game.events.on(Phaser.Core.Events.BLUR, pause);
+    this.input.on("pointerdown", (p, over) => { if (isPaused() && !over.includes(this.muteButton)) resume(); });
+    this.input.keyboard.on("keydown-SPACE", resume);
+    this.input.keyboard.on("keydown-P", () => (isPaused() ? resume() : pause()));
+    this.input.keyboard.on("keydown-ESC", () => (isPaused() ? resume() : pause()));
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.game.events.off(Phaser.Core.Events.HIDDEN, pause);
+      this.game.events.off(Phaser.Core.Events.BLUR, pause);
+    });
+
     const onUpdate = (data) => {
       const names = data.names || { 1: "Player 1", 2: "Player 2" };
       const suit = data.assigned[data.turn];
