@@ -35,3 +35,4 @@ Small one-line fixes do not need a session log unless the user asks.
 - Branded raster UI needs asset-authored safe areas plus geometric and visual QA.
 
 - [[2026-10-15 - Rack validity and pure rules tests]]
+- [[2026-10-23 - Ball readability]]
