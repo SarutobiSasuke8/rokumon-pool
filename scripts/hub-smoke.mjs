@@ -62,3 +62,7 @@ try {
   await browser.close();
   await new Promise(resolve => server.close(resolve));
 }
+
+// CI runs this script after the build; the ball readability smoke rides along
+// here so it is covered without a workflow change.
+await import("./readability-smoke.mjs");

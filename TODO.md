@@ -29,7 +29,8 @@ Use this file for actionable game project work. Keep items concrete.
 - [ ] #task Run the first playtest with `Templates/PLAYTEST_CHECKLIST.md`.
 - [ ] #task Add deployment or sharing notes.
 - [ ] #task Decide the current stage using `Templates/GAME_STAGE_GATE.md`.
-- [ ] #task Replace procedural table/ball art with a real art pass once the feel is confirmed.
+- [ ] #task Replace procedural table art with a real art pass once the feel is confirmed (ball art got the standard numbered look on 2026-10-23, #11).
+- [ ] #task Phone playtest of ball readability on a real device (#11); the canvas renders at 960x540, so a high-DPI render pass is the next step if the numbers look soft.
 - [ ] #task Consider call-pocket rules for the 8-ball shot (currently any legal pot after clearing suit wins).
 - [ ] #task Kitchen-only placement after a break scratch (the 8 on the break is now respotted).
 - [ ] #task Cue-ball spin (english) and a draw/follow control, only if playtests ask for it.

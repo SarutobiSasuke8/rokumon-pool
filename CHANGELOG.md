@@ -4,6 +4,20 @@ All notable changes to this project should be documented here.
 
 ## Unreleased
 
+### 2026-10-23 ball readability (0.3.0, #11)
+
+Changed
+
+- Balls are painted in the standard pool look: numbers 1 to 15 on a white disc, solids coloured all over, stripes white with a coloured band, a black 8, a dark rim and a soft contact shadow. Textures are painted at twice the display size so the numbers stay sharp when the canvas is scaled.
+- Ball colours follow the standard order. The 6 and 14 are a lighter green, because the old dark green almost vanished into the cloth.
+- The aim guide is a solid line on a dark underlay with a ghost ball, and the target ball and its path are green for a legal first hit and red for a foul. The power meter moved to the left margin.
+
+Added
+
+- Player cards above the table: name, group (open table, solids, stripes, on the 8), the group's balls with pocketed ones faded, and the shooter's card lit. The turn line and message sit below the table.
+- A pocketed-ball tray in the right margin, in the order the balls dropped.
+- Tests: `tests/ball-identity.test.js`, `tests/hud.test.js` and the browser smoke `scripts/readability-smoke.mjs` (desktop and phone), run from `scripts/hub-smoke.mjs`.
+
 ### 2026-10-16 beta polish
 
 Added

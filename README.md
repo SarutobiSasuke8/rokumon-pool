@@ -10,7 +10,7 @@ There is no betting, wagering, currency or real-money mechanic in this game. It 
 
 ## Status
 
-Playable at version 0.2.0. A full table, the 8-ball rules and a computer opponent work. Real desktop mouse input has been tested. Touch devices have not been playtested, and the physics feel constants are still waiting on a human judgement. The deployment route is an open decision (see below).
+Playable at version 0.3.0. A full table, the 8-ball rules and a computer opponent work. Real desktop mouse input has been tested. Touch devices have not been playtested, and the physics feel constants are still waiting on a human judgement. The deployment route is an open decision (see below).
 
 ## Run it
 
@@ -37,12 +37,13 @@ Vite prints a local address to open in a browser. To try it on a phone on the sa
 
 - On the title screen choose Play vs Computer (click it, press 1, or press Space) or Two Players (click it or press 2). Pick the computer's difficulty (Easy, Normal or Hard) by tapping it or with the left and right arrow keys; the choice is remembered.
 - Drag anywhere on the table to pull the cue back, then release to shoot. A tap on its own does nothing. The pull-back distance sets the power.
-- While you drag, the game shows a cue stick, the projected path, a ghost ball, the line the object ball will take and a power bar.
+- While you drag, the game shows a cue stick, the projected path, a ghost ball, the line the object ball will take and a power meter in the left margin. The target ball and its path are green when it is a legal first hit for you and red when it would be a foul.
 - Standard 15-ball rack with 6 pockets. The first legal pot assigns suits. Pot all of your suit, then pot the 8-ball, to win.
 - Potting your own suit lets you continue. A foul gives your opponent ball in hand. Fouls are a scratch, hitting no ball, or hitting the wrong ball first.
 - Potting the 8-ball early loses the game. The 8-ball dropping on the break is respotted rather than counted as a loss.
 - There is no call-pocket rule: any legal pot of the 8-ball after clearing your suit wins.
-- Solid and striped balls differ by pattern as well as colour, so suits can be told apart without relying on colour.
+- Balls use the standard look: numbers 1 to 15 on a white disc, solids (1-7) coloured all over, stripes (9-15) white with a coloured band, the black 8, and the standard colour order. A dark rim keeps each ball clear of the cloth, so suits can be told apart without relying on colour.
+- The card above the table for each player shows their group (open table, solids, stripes, then on the 8) and the group's balls, with the pocketed ones faded. The lit card is the player to shoot. Pocketed balls collect in the tray on the right in the order they dropped.
 
 ## Controls
 
@@ -73,7 +74,7 @@ Vite prints a local address to open in a browser. To try it on a phone on the sa
 - Vite 8 and TypeScript for the entry point and type checking. Most game modules are plain JavaScript.
 - Node scripts for the rules and AI checks. No other test framework is configured.
 
-The repository ships no image or audio assets.
+The repository ships no image or audio assets. Ball art is painted at runtime into canvas textures (`src/systems/ballArt.js`).
 
 ## Project layout
 
@@ -103,8 +104,8 @@ The optional `/hub-bridge.js` SDK receives ready, score (object balls legally re
 
 - `match-won`: winner (number, 1 or 2), mode (string), seconds (number).
 
-Run `npm test` and `node scripts/hub-smoke.mjs` after building to check forwarding and standalone play.
+Run `npm test` and `node scripts/hub-smoke.mjs` (or `npm run smoke`) after building to check forwarding and standalone play. `hub-smoke.mjs` also runs `scripts/readability-smoke.mjs`, which checks the painted ball textures, the HUD cards and the tray on a desktop and a phone (667x375) viewport and writes screenshots to `tests/evidence/`.
 
 ## Automated rule coverage
 
-`npm test` runs 4 Vitest rack checks, the existing 24 shot/turn/foul/win checks, 11 AI checks, 7 HUD-label checks and optional SDK forwarding checks. `npm run build` typechecks and bundles the game. The rack tests cover triangular rows, unique ball IDs, the centre 8-ball, suit counts and initial remaining balls. Physics contacts and the live pocket sensors remain browser/playtest work.
+`npm test` runs 4 Vitest rack checks, 14 Vitest ball-identity checks (numbers, stripes against solids, colours, contrast with the cloth), 10 Vitest HUD checks (group assignment, remaining balls, tray), the existing 24 shot/turn/foul/win checks, 11 AI checks, 7 HUD-label checks and optional SDK forwarding checks. `npm run build` typechecks and bundles the game. The rack tests cover triangular rows, unique ball IDs, the centre 8-ball, suit counts and initial remaining balls. Physics contacts and the live pocket sensors remain browser/playtest work.
