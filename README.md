@@ -2,7 +2,7 @@
 
 A top-down browser pool game with 8-ball rules. You aim by dragging back from the cue ball and shooting on release. Play against a computer opponent or share the screen with a second player.
 
-It is part of the Rokumon Games family of small browser games. This repository is private by decision and is not currently deployed.
+It is part of the Rokumon Games family of small browser games.
 
 ## Play money only
 
