@@ -1,9 +1,11 @@
 import Phaser from "phaser";
-import { TABLE, BALL, PHYSICS, INPUT, COLORS, RACK_ORDER, ballColor, AI_DIFFICULTY, resolveDifficulty } from "../game/constants.js";
+import { TABLE, BALL, PHYSICS, INPUT, COLORS, RACK_ORDER, AI_DIFFICULTY, resolveDifficulty } from "../game/constants.js";
 import { createMatchState, snapshotMatch } from "../game/state.js";
-import { resolveShot } from "../game/rules.js";
+import { resolveShot, isLegalFirstContact } from "../game/rules.js";
 import { withNames as formatNames } from "../game/labels.js";
 import { projectCuePath } from "../game/aim.js";
+import { ballTextureKey } from "../game/balls.js";
+import { ART_SCALE, ensureBallTextures, shadowTextureKey } from "../systems/ballArt.js";
 import { planShot, planPlacement } from "../game/ai.js";
 import { createRestartKey } from "../systems/input.js";
 import { installDebug } from "../systems/debug.js";
@@ -41,6 +43,8 @@ export class GameScene extends Phaser.Scene {
     this.currentShotIsBreak = false;
     this.balls = new Map();
     this.pocketedThisTurn = [];
+    // Every object ball pocketed this match, in order, for the HUD tray.
+    this.pocketedOrder = [];
     this.firstContact = null;
     this.phase = PHASE.AIM;
     this.isDragging = false;
@@ -53,6 +57,7 @@ export class GameScene extends Phaser.Scene {
     this.drawTable();
     this.createCushions();
     this.createPockets();
+    ensureBallTextures(this, BALL.radius);
     this.createBalls();
 
     this.aimGfx = this.add.graphics().setDepth(5);
@@ -144,8 +149,8 @@ export class GameScene extends Phaser.Scene {
   update() {
     this.balls.forEach((entry) => {
       if (!entry.active) return;
-      entry.view.x = entry.body.position.x;
-      entry.view.y = entry.body.position.y;
+      entry.view.setPosition(entry.body.position.x, entry.body.position.y);
+      entry.shadow.setPosition(entry.body.position.x + BALL.radius * 0.22, entry.body.position.y + BALL.radius * 0.3);
     });
 
     if (this.restartKey.restartPressed()) {
@@ -286,8 +291,6 @@ export class GameScene extends Phaser.Scene {
 
   addBall(id, x, y) {
     const r = BALL.radius;
-    const isCue = id === "cue";
-    const isStripe = !isCue && id > 8;
     const body = this.matter.bodies.circle(x, y, r, {
       restitution: PHYSICS.restitutionBall,
       friction: PHYSICS.ballSurfaceFriction,
@@ -296,16 +299,11 @@ export class GameScene extends Phaser.Scene {
     });
     this.matter.world.add(body);
 
-    const view = this.add.container(x, y).setDepth(2);
-    view.add(this.add.circle(0, 0, r, ballColor(id)));
-    if (isStripe) view.add(this.add.circle(0, 0, r * 0.55, 0xffffff));
-    if (!isCue) {
-      if (!isStripe) view.add(this.add.circle(0, 0, r * 0.42, 0xffffff));
-      view.add(this.add.text(0, 0, String(id), { fontFamily: "sans-serif", fontSize: `${Math.round(r * 0.85)}px`, color: "#111111" }).setOrigin(0.5));
-    }
-    // Soft highlight so the discs read as spheres.
-    view.add(this.add.circle(-r * 0.3, -r * 0.3, r * 0.22, 0xffffff, 0.35));
-    this.balls.set(String(id), { id, body, view, active: true });
+    // Painted textures (src/systems/ballArt.js): numbers on every object
+    // ball, white caps on the stripes, a dark rim against the cloth.
+    const shadow = this.add.image(x + r * 0.22, y + r * 0.3, shadowTextureKey(r)).setScale(1 / ART_SCALE).setDepth(1.5);
+    const view = this.add.image(x, y, ballTextureKey(id, r)).setScale(1 / ART_SCALE).setDepth(2);
+    this.balls.set(String(id), { id, body, view, shadow, active: true });
     return this.balls.get(String(id));
   }
 
@@ -447,18 +445,46 @@ export class GameScene extends Phaser.Scene {
     const r = BALL.radius;
     const alpha = shot.cancelled ? 0.25 : 1;
 
-    // Projected cue-ball path to the first object ball or cushion.
+    // Projected cue-ball path to the first object ball or cushion: a solid
+    // white line on a dark underlay so it reads on the cloth at phone size.
+    const g = this.aimGfx;
     const path = projectCuePath({ x: cx, y: cy }, dir, this.activeTargets(), TABLE, r);
-    this.drawDashed(cx, cy, path.end.x, path.end.y, 0xffffff, 0.55 * alpha);
+    const sx = cx + dir.x * r;
+    const sy = cy + dir.y * r;
+    if (path.t > r) {
+      g.lineStyle(5, 0x000000, 0.35 * alpha);
+      g.lineBetween(sx, sy, path.end.x, path.end.y);
+      g.lineStyle(2, 0xffffff, 0.9 * alpha);
+      g.lineBetween(sx, sy, path.end.x, path.end.y);
+    }
+    // Ghost ball where the cue ball will be at contact.
+    g.fillStyle(0xffffff, 0.18 * alpha);
+    g.fillCircle(path.end.x, path.end.y, r);
+    g.lineStyle(2, 0xffffff, 0.9 * alpha);
+    g.strokeCircle(path.end.x, path.end.y, r);
     if (path.hit) {
-      this.aimGfx.lineStyle(2, 0xffffff, 0.8 * alpha);
-      this.aimGfx.strokeCircle(path.end.x, path.end.y, r);
+      // The target ring and the object ball's path are green when the ball
+      // is a legal first contact for the shooter, red when it would foul.
+      const legal = isLegalFirstContact(this.match, this.match.turn, Number(path.hit.id));
+      const tint = legal ? 0x4ade80 : 0xf87171;
       const c = path.hit.center;
-      this.aimGfx.lineStyle(3, 0xfde68a, 0.85 * alpha);
-      this.aimGfx.lineBetween(c.x, c.y, c.x + path.hit.dir.x * 70, c.y + path.hit.dir.y * 70);
-    } else {
-      this.aimGfx.fillStyle(0xffffff, 0.6 * alpha);
-      this.aimGfx.fillCircle(path.end.x, path.end.y, 3);
+      const len = 90;
+      const tx = c.x + path.hit.dir.x * len;
+      const ty = c.y + path.hit.dir.y * len;
+      g.lineStyle(3, tint, 0.95 * alpha);
+      g.strokeCircle(c.x, c.y, r + 3);
+      g.lineStyle(5, 0x000000, 0.35 * alpha);
+      g.lineBetween(c.x + path.hit.dir.x * (r + 3), c.y + path.hit.dir.y * (r + 3), tx, ty);
+      g.lineStyle(3, tint, 0.95 * alpha);
+      g.lineBetween(c.x + path.hit.dir.x * (r + 3), c.y + path.hit.dir.y * (r + 3), tx, ty);
+      const nx = -path.hit.dir.y;
+      const ny = path.hit.dir.x;
+      g.fillStyle(tint, 0.95 * alpha);
+      g.fillTriangle(
+        tx + path.hit.dir.x * 9, ty + path.hit.dir.y * 9,
+        tx + nx * 6, ty + ny * 6,
+        tx - nx * 6, ty - ny * 6,
+      );
     }
 
     // Cue stick, pulled back with the drag.
@@ -467,35 +493,22 @@ export class GameScene extends Phaser.Scene {
     const by = cy - dir.y * gap;
     const ex = bx - dir.x * INPUT.cueLength;
     const ey = by - dir.y * INPUT.cueLength;
-    this.aimGfx.lineStyle(7, 0x2b1a0e, 0.9 * alpha);
-    this.aimGfx.lineBetween(bx, by, ex, ey);
-    this.aimGfx.lineStyle(5, COLORS.stick, 1 * alpha);
-    this.aimGfx.lineBetween(bx - dir.x * 8, by - dir.y * 8, ex, ey);
-    this.aimGfx.lineStyle(5, COLORS.stickTip, 1 * alpha);
-    this.aimGfx.lineBetween(bx, by, bx - dir.x * 8, by - dir.y * 8);
+    g.lineStyle(7, 0x2b1a0e, 0.9 * alpha);
+    g.lineBetween(bx, by, ex, ey);
+    g.lineStyle(5, COLORS.stick, 1 * alpha);
+    g.lineBetween(bx - dir.x * 8, by - dir.y * 8, ex, ey);
+    g.lineStyle(5, COLORS.stickTip, 1 * alpha);
+    g.lineBetween(bx, by, bx - dir.x * 8, by - dir.y * 8);
 
-    // Power bar under the table.
-    const barW = 220;
-    const barX = TABLE.midX - barW / 2;
-    const barY = TABLE.bottom + TABLE.cushionThickness + 10;
+    // Power meter in the left margin, filling upwards, so it never sits on
+    // the HUD text under the table.
+    const meter = { x: 12, y: 110, w: 14, h: 320 };
+    const fill = Math.max(4, meter.h * shot.power);
     const col = Phaser.Display.Color.GetColor(80 + shot.power * 175, 210 - shot.power * 130, 255 - shot.power * 175);
-    this.aimGfx.fillStyle(0x000000, 0.5 * alpha);
-    this.aimGfx.fillRoundedRect(barX - 2, barY - 2, barW + 4, 14, 4);
-    this.aimGfx.fillStyle(col, 1 * alpha);
-    this.aimGfx.fillRoundedRect(barX, barY, Math.max(6, barW * shot.power), 10, 3);
-  }
-
-  drawDashed(x1, y1, x2, y2, color, alpha) {
-    const len = Math.hypot(x2 - x1, y2 - y1);
-    if (len < 1) return;
-    const ux = (x2 - x1) / len;
-    const uy = (y2 - y1) / len;
-    const dash = INPUT.guideDash;
-    this.aimGfx.lineStyle(2, color, alpha);
-    for (let d = BALL.radius; d < len; d += dash * 2) {
-      const e = Math.min(d + dash, len);
-      this.aimGfx.lineBetween(x1 + ux * d, y1 + uy * d, x1 + ux * e, y1 + uy * e);
-    }
+    g.fillStyle(0x000000, 0.55 * alpha);
+    g.fillRoundedRect(meter.x - 2, meter.y - 2, meter.w + 4, meter.h + 4, 5);
+    g.fillStyle(col, 1 * alpha);
+    g.fillRoundedRect(meter.x, meter.y + meter.h - fill, meter.w, fill, 4);
   }
 
   // ---- ball in hand ---------------------------------------------------------
@@ -510,6 +523,7 @@ export class GameScene extends Phaser.Scene {
     // it cannot shove other balls around.
     this.matter.world.remove(cue.body);
     cue.view.setAlpha(0.75);
+    cue.shadow.setAlpha(0.4);
     this.phase = PHASE.PLACING;
     this.isDragging = false;
     this.moveCueForPlacement(cue.body.position.x, cue.body.position.y);
@@ -525,6 +539,7 @@ export class GameScene extends Phaser.Scene {
     this.matter.body.setPosition(cue.body, { x: px, y: py });
     this.matter.body.setVelocity(cue.body, { x: 0, y: 0 });
     cue.view.setPosition(px, py);
+    cue.shadow.setPosition(px + r * 0.22, py + r * 0.3);
     const minGap = r * 2 + 1;
     this.placementValid = this.activeTargets().every((t) => Math.hypot(t.x - px, t.y - py) >= minGap)
       && this.pocketPositions().every((p) => Math.hypot(p.x - px, p.y - py) >= TABLE.pocketRadius + r);
@@ -537,6 +552,7 @@ export class GameScene extends Phaser.Scene {
     Sleeping.set(cue.body, false);
     this.matter.body.setVelocity(cue.body, { x: 0, y: 0 });
     cue.view.setAlpha(1);
+    cue.shadow.setAlpha(1);
     this.placeGfx.clear();
     this.phase = PHASE.AIM;
     this.updateHud("");
@@ -621,7 +637,9 @@ export class GameScene extends Phaser.Scene {
     entry.active = false;
     this.matter.world.remove(entry.body);
     entry.view.destroy();
+    entry.shadow.destroy();
     this.pocketedThisTurn.push(entry.id);
+    if (entry.id !== "cue") this.pocketedOrder.push(entry.id);
     audio.pocket();
   }
 
@@ -712,6 +730,7 @@ export class GameScene extends Phaser.Scene {
     const existing = this.balls.get("8");
     if (existing && existing.active) return;
     if (existing) this.balls.delete("8");
+    this.pocketedOrder = this.pocketedOrder.filter((id) => id !== 8);
     const r = BALL.radius;
     const footX = TABLE.left + (TABLE.right - TABLE.left) * 0.62;
     const free = (x, y) => this.activeTargets("8").every((t) => Math.hypot(t.x - x, t.y - y) >= r * 2 + 1);
@@ -724,16 +743,18 @@ export class GameScene extends Phaser.Scene {
   }
 
   updateHud(message) {
-    const suit = this.match.assigned[this.match.turn];
     const payload = {
       turn: this.match.turn,
       assigned: { ...this.match.assigned },
       remaining: { solid: [...this.match.remaining.solid], stripe: [...this.match.remaining.stripe] },
+      pocketed: [...this.pocketedOrder],
       phase: this.phase,
       mode: this.mode,
       difficultyLabel: this.mode === "ai" ? AI_DIFFICULTY[this.difficulty].label : null,
       names: { ...this.names },
-      message: this.withNames(message || `Player ${this.match.turn}'s turn${suit ? ` (${suit}s)` : ""}`),
+      // The turn and group are on the HUD cards; an empty message shows the
+      // controls hint instead of repeating them.
+      message: this.withNames(message || ""),
       gameOver: this.match.gameOver,
     };
     this.game.registry.set("matchHud", payload);

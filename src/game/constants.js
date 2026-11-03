@@ -43,8 +43,6 @@ export const PHYSICS = Object.freeze({
 export const INPUT = Object.freeze({
   // A drag shorter than this is treated as a tap and never fires a shot.
   minDrag: 14,
-  // Length of the projected cue-ball path when nothing is in the way.
-  guideDash: 10,
   cueLength: 180,
 });
 
@@ -74,12 +72,17 @@ export const COLORS = Object.freeze({
   rail: 0x5b3a22,
   railDark: 0x2c1b10,
   pocket: 0x0b0b0b,
-  cue: 0xffffff,
-  eight: 0x161616,
+  cue: 0xf8f6ee,
+  eight: 0x111111,
   stick: 0xc8956b,
   stickTip: 0x4aa3ff,
-  solids: { 1: 0xe4b100, 2: 0x1c5ad1, 3: 0xd42f2f, 4: 0x5a2a86, 5: 0xdd6b18, 6: 0x1f7a3d, 7: 0x7a1f1f },
-  stripes: { 9: 0xe4b100, 10: 0x1c5ad1, 11: 0xd42f2f, 12: 0x5a2a86, 13: 0xdd6b18, 14: 0x1f7a3d, 15: 0x7a1f1f },
+  // Standard pool-ball colours (1 yellow, 2 blue, 3 red, 4 purple, 5 orange,
+  // 6 green, 7 maroon; 9-15 repeat them as stripes), tuned so each one stands
+  // out from the green cloth. The 6 is a lighter green than a real ball: a
+  // true dark green all but vanished into the felt. tests/ball-identity.test.js
+  // checks the contrast.
+  solids: { 1: 0xf5c518, 2: 0x2563eb, 3: 0xdc2626, 4: 0x7c3aed, 5: 0xf97316, 6: 0x22c55e, 7: 0x8b1e1e },
+  stripes: { 9: 0xf5c518, 10: 0x2563eb, 11: 0xdc2626, 12: 0x7c3aed, 13: 0xf97316, 14: 0x22c55e, 15: 0x8b1e1e },
 });
 
 export function ballColor(id) {
