@@ -343,6 +343,8 @@ export class GameScene extends Phaser.Scene {
     });
 
     const release = (p) => {
+      // Phaser also delivers an OS-cancelled touch as pointerup.
+      if (p.wasCanceled) { this.cancelDrag(); return; }
       if (this.isAiTurn()) { this.isDragging = false; return; }
       if (this.phase === PHASE.PLACING) {
         this.moveCueForPlacement(p.worldX, p.worldY);

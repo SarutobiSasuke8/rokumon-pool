@@ -57,6 +57,7 @@ export class UIScene extends Phaser.Scene {
     ]).setDepth(100).setVisible(false);
     this.children.bringToTop(this.muteButton);
     const isPaused = () => this.scene.isPaused("Game");
+    const rotatePrompt = document.getElementById("rotate");
     const pause = () => {
       const game = this.scene.get("Game");
       if (!this.scene.isActive("Game") || game.match?.gameOver || game.phase === "over") return;
@@ -65,18 +66,25 @@ export class UIScene extends Phaser.Scene {
       overlay.setVisible(true);
     };
     const resume = () => {
-      if (!isPaused()) return;
+      if (!isPaused() || rotatePrompt?.offsetWidth) return;
       audio.unlock(); // Mobile browsers can suspend the AudioContext while the tab is hidden.
       overlay.setVisible(false);
       this.scene.resume("Game");
     };
     this.game.events.on(Phaser.Core.Events.HIDDEN, pause);
     this.game.events.on(Phaser.Core.Events.BLUR, pause);
+    // The portrait prompt covers the whole table without hiding the tab.
+    // Observe the actual prompt so the pause follows the same layout rule.
+    const rotation = new ResizeObserver(() => {
+      if (rotatePrompt?.offsetWidth) pause();
+    });
+    if (rotatePrompt) rotation.observe(rotatePrompt);
     this.input.on("pointerdown", (p, over) => { if (isPaused() && !over.includes(this.muteButton)) resume(); });
     this.input.keyboard.on("keydown-SPACE", resume);
     this.input.keyboard.on("keydown-P", () => (isPaused() ? resume() : pause()));
     this.input.keyboard.on("keydown-ESC", () => (isPaused() ? resume() : pause()));
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      rotation.disconnect();
       this.game.events.off(Phaser.Core.Events.HIDDEN, pause);
       this.game.events.off(Phaser.Core.Events.BLUR, pause);
     });

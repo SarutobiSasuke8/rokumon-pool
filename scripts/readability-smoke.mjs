@@ -153,6 +153,14 @@ try {
     if (options.hasTouch) {
       const cdp = await context.newCDPSession(page);
       await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [from] });
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [to] });
+      await page.waitForFunction(() => window.__GAME_DEBUG__.getScene().shotFromDrag()?.cancelled === false);
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] });
+      assert.deepEqual(await page.evaluate(() => {
+        const scene = window.__GAME_DEBUG__.getScene();
+        return [scene.shotIndex, scene.isDragging];
+      }), [shotsBefore, false], "an interrupted touch must drop the aim without shooting");
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [from] });
       for (let i = 1; i <= 5; i += 1) await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: from.x + ((to.x - from.x) * i) / 5, y: from.y }] });
       await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
     } else {
@@ -162,6 +170,22 @@ try {
       await page.mouse.up();
     }
     await page.waitForFunction((n) => window.__GAME_DEBUG__.getScene().shotIndex > n, shotsBefore, { timeout: 5000 });
+    if (options.hasTouch) {
+      // Rotation covers the entire match on a phone. Stop the simulation
+      // until the player can see the table again and explicitly resumes.
+      await page.setViewportSize({ width: 375, height: 667 });
+      await page.locator("#rotate").waitFor({ state: "visible" });
+      await page.waitForFunction(() => window.__GAME_DEBUG__.getScene().scene.isPaused("Game"), null, { timeout: 3000 });
+      const frames = await page.evaluate(() => window.__GAME_DEBUG__.getScene().shotFrames);
+      await page.waitForTimeout(150);
+      assert.equal(await page.evaluate(() => window.__GAME_DEBUG__.getScene().shotFrames), frames);
+      await page.setViewportSize(options.viewport);
+      await page.locator("#rotate").waitFor({ state: "hidden" });
+      assert.ok(await page.evaluate(() => window.__GAME_DEBUG__.getScene().scene.isPaused("Game")));
+      await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+      await page.waitForFunction(() => window.__GAME_DEBUG__.getScene().scene.isActive("Game"));
+      assert.equal(await page.evaluate(() => window.__GAME_DEBUG__.getScene().shotIndex), shotsBefore + 1);
+    }
     assert.deepEqual(errors, [], `${name}: no page errors`);
     console.log(`ok - ${name}: 16 ball textures, groups ${assigned[1]}/${assigned[2]}, tray ${state.tray.length}, ${options.hasTouch ? "touch" : "mouse"} drag shoots`);
     await context.close();
