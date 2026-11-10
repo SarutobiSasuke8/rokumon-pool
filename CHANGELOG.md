@@ -4,6 +4,12 @@ All notable changes to this project should be documented here.
 
 ## Unreleased
 
+### 2026-11-10 key art (0.10.1)
+
+Changed
+
+- The title-screen backdrop and the hub cover and hero use new key art generated with Higgsfield (GPT Image 2.5): gold and crimson balls on the table under the six-ring crest. Sources are in `art/higgsfield/`; the Blender renders stay in `art/renders/` and still provide the in-game table.
+
 ### 2026-11-10 Six Coins (0.10.0)
 
 Added

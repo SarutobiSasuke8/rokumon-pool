@@ -41,7 +41,7 @@ const crest = (size) => {
 };
 
 // `u` is the lockup's unit: every size in it is a multiple of u pixels.
-function page({ art, w, h, u, left, top, tagline, position = "center" }) {
+function page({ art, w, h, u = 10, left = 0, top = 0, tagline, position = "center", plain = false }) {
   return `<!doctype html><meta charset="utf-8"><style>
     @font-face { font-family: "BC"; font-weight: 600; src: url("${FONT}-600-normal.woff2") format("woff2"); }
     @font-face { font-family: "BC"; font-weight: 700; src: url("${FONT}-700-normal.woff2") format("woff2"); }
@@ -55,7 +55,7 @@ function page({ art, w, h, u, left, top, tagline, position = "center" }) {
     .pool { font-weight: 700; font-size: ${u * 11}px; line-height: 0.9; margin-top: ${u * 0.5}px; letter-spacing: ${u * 0.1}px; }
     .rule { display: flex; align-items: center; gap: ${u}px; margin-top: ${u * 1.2}px; font-weight: 600; font-size: ${u * 1.7}px; letter-spacing: ${u * 0.3}px; color: #c9d2dc; }
     .rule::before { content: ""; width: ${u * 4}px; height: ${Math.max(2, u * 0.18)}px; background: #e3b458; }
-  </style><body><div class="fade"></div><div class="lockup">${crest(u * 0.9)}<div class="name">ROKUMON</div><div class="pool">POOL</div>${tagline ? `<div class="rule">${tagline}</div>` : ""}</div></body>`;
+  </style><body>${plain ? "" : `<div class="fade"></div><div class="lockup">${crest(u * 0.9)}<div class="name">ROKUMON</div><div class="pool">POOL</div>${tagline ? `<div class="rule">${tagline}</div>` : ""}</div>`}</body>`;
 }
 
 const JOBS = [
@@ -66,6 +66,11 @@ const JOBS = [
   // The hub wants a cover near 3:2 with the title on it, and a hero with no text
   // (it uses the key art itself, src/art/keyart.webp).
   { out: "hub-cover-1500x1000.png", art: "/art/renders/keyart.png", w: 1500, h: 1000, u: 18, left: 80, top: 70, tagline: "8-BALL · 9-BALL · BLACKBALL · SIX COINS", position: "62% center" },
+  // Premium key art generated with Higgsfield (GPT Image 2.5), in art/higgsfield/.
+  // The cover carries the title; the hero is used as it is, with no text.
+  { out: "hub-cover-v2-1200x800.png", art: "/art/higgsfield/cover.png", w: 1200, h: 800, u: 15, left: 66, top: 78, tagline: "8-BALL · 9-BALL · BLACKBALL · SIX COINS", position: "center" },
+  { out: "hub-hero-v2-1344x752.jpg", art: "/art/higgsfield/hero.png", w: 1344, h: 752, plain: true },
+  { out: "banner-hero-v2-1344x752.png", art: "/art/higgsfield/hero.png", w: 1344, h: 752, u: 15, left: 76, top: 60, tagline: "FOUR GAMES · TEN RIVALS" },
   { out: "hub-hero-1600x900.png", art: "/art/renders/keyart.png", w: 1600, h: 900, u: 18, left: 90, top: 76, tagline: "8-BALL IN YOUR BROWSER" },
 ];
 
@@ -81,7 +86,7 @@ try {
     await tab.setContent(page({ ...job, art: origin + job.art }), { waitUntil: "load" });
     await tab.evaluate(() => document.fonts.ready);
     await tab.waitForTimeout(150);
-    await tab.screenshot({ path: `art/banners/${job.out}` });
+    await tab.screenshot(job.out.endsWith(".jpg") ? { path: `art/banners/${job.out}`, type: "jpeg", quality: 88 } : { path: `art/banners/${job.out}` });
     console.log(`wrote art/banners/${job.out}`);
     await context.close();
   }
