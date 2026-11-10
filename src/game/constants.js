@@ -127,8 +127,20 @@ export const NINE_RACK = [
   [8],
 ];
 
+// Six Coins: the six gold balls (1-6) sit in the heart of the triangle,
+// guarded by the nine reds along the front and both edges.
+export const SIX_COINS_RACK = [
+  [7],
+  [8, 9],
+  [10, 1, 11],
+  [12, 2, 3, 13],
+  [14, 4, 5, 6, 15],
+];
+
 export function rackFor(variant) {
-  return variant === "nineball" ? NINE_RACK : RACK_ORDER;
+  if (variant === "nineball") return NINE_RACK;
+  if (variant === "sixcoins") return SIX_COINS_RACK;
+  return RACK_ORDER;
 }
 
 export const RACK_ORDER = [

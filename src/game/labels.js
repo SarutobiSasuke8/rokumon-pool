@@ -26,6 +26,8 @@ export function withNames(text, names) {
       out = out
         .replace(new RegExp(`Player ${p} pots and stays`, "g"), "You pot and stay")
         .replace(new RegExp(`Player ${p} pots and still has`, "g"), "You pot and still have")
+        .replace(new RegExp(`Player ${p} pots a red`, "g"), "You pot a red")
+        .replace(new RegExp(`Player ${p} banks `, "g"), "You bank ")
         .replace(new RegExp(`Player ${p} has `, "g"), "You have ")
         .replace(new RegExp(`Player ${p} wins`, "g"), "You win")
         .replace(new RegExp(`Player ${p} breaks`, "g"), "You break");

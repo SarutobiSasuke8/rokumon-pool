@@ -65,7 +65,7 @@ const JOBS = [
   { out: "cover-square-1080x1080.png", art: "/art/renders/keyart-square.png", w: 1080, h: 1080, u: 17, left: 64, top: 60, tagline: "8-BALL" },
   // The hub wants a cover near 3:2 with the title on it, and a hero with no text
   // (it uses the key art itself, src/art/keyart.webp).
-  { out: "hub-cover-1500x1000.png", art: "/art/renders/keyart.png", w: 1500, h: 1000, u: 18, left: 80, top: 70, tagline: "8-BALL · 9-BALL · BLACKBALL", position: "62% center" },
+  { out: "hub-cover-1500x1000.png", art: "/art/renders/keyart.png", w: 1500, h: 1000, u: 18, left: 80, top: 70, tagline: "8-BALL · 9-BALL · BLACKBALL · SIX COINS", position: "62% center" },
   { out: "hub-hero-1600x900.png", art: "/art/renders/keyart.png", w: 1600, h: 900, u: 18, left: 90, top: 76, tagline: "8-BALL IN YOUR BROWSER" },
 ];
 
@@ -145,7 +145,7 @@ try {
     await tab.keyboard.press("Escape");
     await tab.waitForFunction(() => document.body.dataset.screen === "menu");
     // Blackball is the third game chip on the title screen.
-    await tab.mouse.click((326 / 960) * 1920, (284 / 540) * 1080);
+    await tab.mouse.click((267.5 / 960) * 1920, (284 / 540) * 1080);
     await tab.keyboard.press("2");
     await tab.waitForFunction(() => document.body.dataset.screen === "game");
     await tab.waitForTimeout(400);
@@ -160,6 +160,27 @@ try {
     });
     await tab.waitForTimeout(300);
     await tab.screenshot({ path: "art/banners/screenshot-05-blackball.png" });
+    // Six Coins, the house game: break, then pot a red so gold is on.
+    await tab.evaluate(() => {
+      const d = window.__GAME_DEBUG__;
+      const s = d.getScene();
+      s.scene.restart({ mode: "ai", variant: "sixcoins", difficulty: "normal" });
+    });
+    await tab.waitForTimeout(500);
+    await tab.evaluate(() => {
+      const d = window.__GAME_DEBUG__;
+      const s = d.getScene();
+      const settle = () => { for (let i = 0; i < 80 && (s.phase === "shooting" || s.strike); i += 1) d.stepFrames(30); };
+      d.strike(0.95); settle();
+      for (let i = 0; i < 200 && s.isAiTurn() && s.phase !== "over"; i += 1) d.stepFrames(20);
+      if (s.phase === "placing") d.placeCue(240, 270);
+      const red = [...s.balls.values()].find((b) => b.active && Number(b.id) >= 7);
+      if (s.phase === "aim" && !s.isAiTurn() && s.match.on === "red" && red) { d.teleportToPocket(red.id, 2); s.firstContact = Number(red.id); settle(); }
+      if (s.phase === "aim") { s.resetAim(); s.power = 0.45; }
+      d.stepFrames(260);
+    });
+    await tab.waitForTimeout(300);
+    await tab.screenshot({ path: "art/banners/screenshot-06-six-coins.png" });
     await tab.evaluate(() => { localStorage.removeItem("rokumon-pool:campaign"); localStorage.removeItem("rokumon-pool:settings"); });
     console.log("wrote art/banners/screenshot-*.png");
     await context.close();

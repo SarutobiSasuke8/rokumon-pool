@@ -160,9 +160,22 @@ export function renderBall(image, id, radius, m, skin = "standard") {
         }
       }
 
+      if (ball.emblem === "coin") {
+        // A ring around each pole, like the coins of the crest.
+        const off = Math.sqrt(Math.max(0, 1 - lz * lz));
+        if (off > 0.3 && off < 0.5) { r *= 0.42; g *= 0.4; b *= 0.3; }
+      }
+
       const diffuse = Math.max(0, x * LIGHT[0] + y * LIGHT[1] + z * LIGHT[2]);
-      const shade = 0.5 + 0.62 * diffuse;
-      const spec = Math.pow(Math.max(0, x * HALF[0] + y * HALF[1] + z * HALF[2]), 70) * 235;
+      let shade = 0.5 + 0.62 * diffuse;
+      let spec = Math.pow(Math.max(0, x * HALF[0] + y * HALF[1] + z * HALF[2]), 70) * 235;
+      if (ball.metallic) {
+        // Polished metal: darker in the shade, a bright band where it mirrors
+        // the lamp, and a broader, hotter highlight.
+        const mirror = Math.pow(Math.max(0, 1 - Math.abs(y + 0.28) * 2.2), 2);
+        shade = 0.34 + 0.78 * diffuse + 0.3 * mirror;
+        spec = Math.pow(Math.max(0, x * HALF[0] + y * HALF[1] + z * HALF[2]), 34) * 255;
+      }
       // A dark rim keeps every ball crisp against the cloth.
       const rim = d > 0.86 ? 1 - Math.min(1, (d - 0.86) / 0.14) * 0.55 : 1;
       data[o] = Math.min(255, r * shade * rim + spec);

@@ -63,6 +63,12 @@ Direction decided 2026-11-10: stay top-down in Phaser, with art rendered in Blen
 - [ ] Music track from Suno (needs Alexei: one download left; drop it at `src/audio/music-main.mp3`).
 - [ ] Listen to the sound effects in play and regenerate any that are wrong (needs Alexei's ears).
 
+### Milestone 6c: Six Coins (0.10.0)
+
+- [x] An original house game with gold coin balls: Six Coins.
+- [x] Computer opponent, HUD, how-to-play and two campaign opponents for it.
+- [ ] Play it by hand and adjust the balance (needs Alexei).
+
 ### Milestone 7: Release (1.0.0)
 
 - [ ] Phone playtest on a real device (needs Alexei).
@@ -90,6 +96,7 @@ Direction decided 2026-11-10: stay top-down in Phaser, with art rendered in Blen
 | 2026-10-01 | Repo stays private | Rokumon game repos are private by pattern | Never without Alexei |
 | 2026-11-10 | Stay 2D, art rendered in Blender | Top-down suits a phone; the complaints were art and controls, not the lack of 3D; assets carry over to 3D later | After 1.0 |
 | 2026-11-10 | Two shots after a foul in 8-ball and blackball | Alexei chose pub rules over ball in hand | Phone playtest |
+| 2026-11-10 | Six Coins: red before every coin, first to four | Gives the gold balls a cost and a rhythm without leaving ordinary pool | After Alexei has played it |
 | 2026-11-10 | Snooker to be its own game | Bigger table, 22 balls, different scoring; cramped inside this layout | When it is started |
 | 2026-11-10 | Aim and power separated | A pull-back drag runs out of room when the cue ball is near a cushion | Phone playtest |
 

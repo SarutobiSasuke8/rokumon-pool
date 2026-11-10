@@ -20,8 +20,8 @@ export const CHARACTERS = Object.freeze([
   { id: "seikai", name: "Miyoshi Seikai", epithet: "The Iron Staff", variant: "blackball", color: 0x9c3d2e, trophy: "Iron Staff",
     blurb: "The elder monk. Stronger, straighter, still no touch. Plays blackball.",
     tuning: { skill: 0.45, weakShotChance: 0.3, loosePlacement: 0.45, powerBias: 1.45, thinkMs: 800 } },
-  { id: "unno", name: "Unno Rokuro", epithet: "The Steward", variant: "eightball", color: 0x4f6d8f, trophy: "Steward's Seal",
-    blurb: "Careful and slow. Rolls every ball in at walking pace.",
+  { id: "unno", name: "Unno Rokuro", epithet: "The Steward", variant: "sixcoins", color: 0x4f6d8f, trophy: "Steward's Seal",
+    blurb: "Careful and slow. Keeps the house accounts, so he plays Six Coins.",
     tuning: { skill: 0.54, weakShotChance: 0.2, loosePlacement: 0.3, powerBias: 0.85, thinkMs: 1400 } },
   { id: "mochizuki", name: "Mochizuki Rokuro", epithet: "The Powder Master", variant: "nineball", color: 0xc2702a, trophy: "Powder Flask",
     blurb: "Likes a bang. Challenges you at 9-ball, where one shot can end it.",
@@ -38,8 +38,8 @@ export const CHARACTERS = Object.freeze([
   { id: "saizo", name: "Kirigakure Saizo", epithet: "The Mist", variant: "eightball", color: 0x7a8794, trophy: "Mist Blade",
     blurb: "You will not see how he got position. He will have it anyway.",
     tuning: { skill: 0.87, weakShotChance: 0, loosePlacement: 0, powerBias: 1.0, thinkMs: 900 } },
-  { id: "sasuke", name: "Sarutobi Sasuke", epithet: "The Monkey Jump", variant: "eightball", color: 0xb3261e, trophy: "The Six Coins",
-    blurb: "First of the Ten. Give him one open shot and the frame is over.",
+  { id: "sasuke", name: "Sarutobi Sasuke", epithet: "The Monkey Jump", variant: "sixcoins", color: 0xb3261e, trophy: "The Six Coins",
+    blurb: "First of the Ten, at the house game. Give him one red and the coins are gone.",
     tuning: { skill: 0.94, weakShotChance: 0, loosePlacement: 0, powerBias: 1.0, thinkMs: 550 } },
 ].map((c, index) => Object.freeze({ ...c, rank: index + 1, tuning: Object.freeze(c.tuning) })));
 

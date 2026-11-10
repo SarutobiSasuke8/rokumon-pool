@@ -21,6 +21,21 @@ export function playerPanel(data, player) {
   const name = player === 2 && data.difficultyLabel ? `${rawName} (${data.difficultyLabel})` : rawName;
   const active = data.turn === player && !data.gameOver;
   const shots = active ? (data.shots ?? 1) : 1;
+  if (data.variant === "sixcoins") {
+    // Four coin slots per player, lit as coins are banked. The shooter's
+    // chip says what is on.
+    const banked = data.coins?.[player] ?? 0;
+    const on = data.lastCoin ? "LAST COIN" : data.on === "gold" ? "GOLD IS ON" : "RED FIRST";
+    return {
+      player, name, group: null, shots,
+      label: active ? on : `${banked} OF 4`,
+      remaining: [],
+      balls: [0, 1, 2, 3].map((i) => ({ id: 1, onTable: i < banked })),
+      onEight: false,
+      coins: banked,
+      active,
+    };
+  }
   if (data.variant === "nineball") {
     // No groups: the shooter's card shows the run of balls and which is on.
     const left = [...(data.balls ?? [])];
