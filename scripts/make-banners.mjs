@@ -63,6 +63,9 @@ const JOBS = [
   { out: "banner-wide-1500x500.png", art: "/art/renders/keyart-wide.png", w: 1500, h: 500, u: 12.5, left: 70, top: 44, tagline: "8-BALL IN YOUR BROWSER" },
   { out: "social-share-1200x630.png", art: "/art/renders/keyart.png", w: 1200, h: 630, u: 14.5, left: 64, top: 50, tagline: "8-BALL IN YOUR BROWSER" },
   { out: "cover-square-1080x1080.png", art: "/art/renders/keyart-square.png", w: 1080, h: 1080, u: 17, left: 64, top: 60, tagline: "8-BALL" },
+  // The hub wants a cover near 3:2 with the title on it, and a hero with no text
+  // (it uses the key art itself, src/art/keyart.webp).
+  { out: "hub-cover-1500x1000.png", art: "/art/renders/keyart.png", w: 1500, h: 1000, u: 18, left: 80, top: 70, tagline: "8-BALL · 9-BALL · BLACKBALL", position: "62% center" },
   { out: "hub-hero-1600x900.png", art: "/art/renders/keyart.png", w: 1600, h: 900, u: 18, left: 90, top: 76, tagline: "8-BALL IN YOUR BROWSER" },
 ];
 
