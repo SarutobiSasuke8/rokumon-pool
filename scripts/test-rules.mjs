@@ -1,7 +1,7 @@
-// Node check for the pure 8-ball rules. Run with: node scripts/test-rules.mjs
+// Node check for the pure rules (8-ball, blackball, 9-ball). Run with: node scripts/test-rules.mjs
 import assert from "node:assert/strict";
 import { createMatchState } from "../src/game/state.js";
-import { resolveShot, legalFirstTarget } from "../src/game/rules.js";
+import { resolveShot, legalFirstTarget, lowestBall, isLegalFirstContact } from "../src/game/rules.js";
 
 const fresh = () => createMatchState();
 const withSuits = (p1 = "solid") => {
@@ -28,10 +28,13 @@ test("open table: no pot passes the turn without a foul", () => {
   assert.equal(r.match.turn, 2);
 });
 
-test("scratch is a foul: ball in hand, turn passes, table stays open", () => {
+test("scratch is a foul: two shots, cue ball behind the line, table stays open", () => {
   const r = resolveShot(fresh(), { pocketed: [5, "cue"], firstContact: 5 });
   assert.equal(r.foulReason, "scratch");
   assert.equal(r.ballInHand, true);
+  assert.equal(r.placement, "kitchen");
+  assert.equal(r.match.shots, 2);
+  assert.match(r.message, /Player 2 has two shots, cue ball behind the line\./);
   assert.equal(r.match.turn, 2);
   assert.equal(r.match.assigned[1], null);
   assert.deepEqual(r.match.remaining.solid, [1, 2, 3, 4, 6, 7], "potted ball stays down");
@@ -46,7 +49,11 @@ test("no contact is a foul", () => {
 test("hitting the opponent's suit first is a foul even if you pot your own", () => {
   const r = resolveShot(withSuits("solid"), { pocketed: [2], firstContact: 12 });
   assert.match(r.foulReason, /stripe/);
-  assert.equal(r.ballInHand, true);
+  // The cue ball was not pocketed, so it stays where it lies.
+  assert.equal(r.ballInHand, false);
+  assert.equal(r.placement, "none");
+  assert.equal(r.match.shots, 2);
+  assert.match(r.message, /^Foul: hit a stripe \(12\) first\. Player 2 has two shots\.$/);
   assert.equal(r.match.turn, 2);
   assert.equal(r.continueTurn, false);
 });
@@ -212,6 +219,117 @@ test("restart from a terminal state gives a fresh, independent, legal match", ()
   const brk = resolveShot(restarted, { pocketed: [8], firstContact: 1, isBreak: true });
   assert.equal(brk.match.gameOver, false);
   assert.equal(brk.respotEight, true);
+});
+
+// ---- two shots after a foul ---------------------------------------------
+
+const afterFoul = () => resolveShot(withSuits("solid"), { pocketed: [], firstContact: null }).match;
+
+test("two shots: a miss on the first uses one and the same player shoots again", () => {
+  const m = afterFoul();
+  assert.equal(m.turn, 2);
+  assert.equal(m.shots, 2);
+  const r = resolveShot(m, { pocketed: [], firstContact: 9 });
+  assert.equal(r.foulReason, null);
+  assert.equal(r.match.turn, 2, "still at the table");
+  assert.equal(r.match.shots, 1);
+  assert.equal(r.message, "Player 2 has one shot left.");
+});
+
+test("two shots: a miss on the second passes the turn with one shot", () => {
+  const first = resolveShot(afterFoul(), { pocketed: [], firstContact: 9 }).match;
+  const r = resolveShot(first, { pocketed: [], firstContact: 9 });
+  assert.equal(r.match.turn, 1);
+  assert.equal(r.match.shots, 1);
+});
+
+test("two shots: a pot does not use one up", () => {
+  const r = resolveShot(afterFoul(), { pocketed: [9], firstContact: 9 });
+  assert.equal(r.continueTurn, true);
+  assert.equal(r.match.turn, 2);
+  assert.equal(r.match.shots, 2);
+  assert.equal(r.message, "Player 2 pots and still has two shots.");
+});
+
+test("two shots: fouling with two shots in hand hands two to the other player", () => {
+  const r = resolveShot(afterFoul(), { pocketed: [], firstContact: 1 });
+  assert.match(r.foulReason, /solid/);
+  assert.equal(r.match.turn, 1);
+  assert.equal(r.match.shots, 2);
+});
+
+test("a normal visit is one shot", () => {
+  assert.equal(fresh().shots, 1);
+  const r = resolveShot(fresh(), { pocketed: [], firstContact: 1 });
+  assert.equal(r.match.shots, 1);
+});
+
+// ---- blackball: same rules, reds and yellows ------------------------------
+
+test("blackball: fouls and wins are worded in reds, yellows and the black", () => {
+  const m = createMatchState("blackball");
+  m.assigned = { 1: "solid", 2: "stripe" };
+  const foul = resolveShot(m, { pocketed: [], firstContact: 12 });
+  assert.equal(foul.message, "Foul: hit a yellow first. Player 2 has two shots.");
+  const early = resolveShot(m, { pocketed: [8], firstContact: 1 });
+  assert.equal(early.message, "Player 1 pocketed the black early. Player 2 wins!");
+  m.remaining.solid = [];
+  const win = resolveShot(m, { pocketed: [8], firstContact: 8 });
+  assert.equal(win.winner, 1);
+  assert.equal(win.message, "Player 1 cleared the table and sank the black!");
+});
+
+// ---- 9-ball ----------------------------------------------------------------
+
+const nine = () => createMatchState("nineball");
+
+test("9-ball: the lowest ball must be hit first", () => {
+  assert.equal(lowestBall(nine()), 1);
+  assert.equal(isLegalFirstContact(nine(), 1, 1), true);
+  assert.equal(isLegalFirstContact(nine(), 1, 2), false);
+  const r = resolveShot(nine(), { pocketed: [], firstContact: 3 });
+  assert.match(r.foulReason, /hit the 3 first, the 1 was on/);
+  assert.equal(r.placement, "anywhere");
+  assert.equal(r.ballInHand, true);
+  assert.equal(r.match.turn, 2);
+  assert.equal(r.match.shots, 1, "9-ball gives ball in hand, not two shots");
+});
+
+test("9-ball: any ball potted on a legal shot keeps the turn", () => {
+  const r = resolveShot(nine(), { pocketed: [5], firstContact: 1 });
+  assert.equal(r.foulReason, null);
+  assert.equal(r.continueTurn, true);
+  assert.equal(r.match.turn, 1);
+  assert.deepEqual(r.match.balls, [1, 2, 3, 4, 6, 7, 8, 9]);
+});
+
+test("9-ball: the lowest ball moves on as balls go down", () => {
+  const r = resolveShot(nine(), { pocketed: [1, 2], firstContact: 1 });
+  assert.equal(lowestBall(r.match), 3);
+});
+
+test("9-ball: potting the 9 on a legal shot wins at any time", () => {
+  const r = resolveShot(nine(), { pocketed: [9], firstContact: 1 });
+  assert.equal(r.winner, 1);
+  assert.equal(r.match.gameOver, true);
+  assert.equal(r.message, "Player 1 potted the 9-ball!");
+});
+
+test("9-ball: the 9 down on a foul is respotted and the game goes on", () => {
+  const r = resolveShot(nine(), { pocketed: [9, "cue"], firstContact: 1 });
+  assert.equal(r.winner, null);
+  assert.equal(r.match.gameOver, false);
+  assert.deepEqual(r.respot, [9]);
+  assert.ok(r.match.balls.includes(9));
+  assert.equal(r.match.turn, 2);
+  assert.match(r.message, /The 9-ball is respotted\./);
+});
+
+test("9-ball: a miss with no foul passes the turn", () => {
+  const r = resolveShot(nine(), { pocketed: [], firstContact: 1 });
+  assert.equal(r.foulReason, null);
+  assert.equal(r.match.turn, 2);
+  assert.equal(r.ballInHand, false);
 });
 
 console.log(`\n${passed} rules checks passed`);

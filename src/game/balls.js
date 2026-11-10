@@ -15,7 +15,17 @@ export const STRIPE_BAND = 0.56;
 // Radius of the white number disc, as a fraction of the ball radius.
 export const NUMBER_DISC = 0.54;
 
-export function ballIdentity(id) {
+// Blackball: seven plain reds, seven plain yellows and the black.
+export const BLACKBALL_RED = 0xd42a2a;
+export const BLACKBALL_YELLOW = 0xf2c318;
+
+export function ballIdentity(id, skin = "standard") {
+  if (skin === "blackball" && id !== "cue" && Number(id) !== 8) {
+    const number = Number(id);
+    if (!Number.isInteger(number) || number < 1 || number > 15) throw new RangeError(`Unknown ball: ${id}`);
+    const red = number < 8;
+    return { id: number, kind: red ? "solid" : "stripe", number, color: red ? BLACKBALL_RED : BLACKBALL_YELLOW, striped: false, numbered: false, label: red ? "red" : "yellow" };
+  }
   if (id === "cue") {
     return { id, kind: "cue", number: null, color: ballColor("cue"), striped: false, numbered: false, label: "cue ball" };
   }
@@ -33,8 +43,13 @@ export function ballIdentity(id) {
   };
 }
 
-export function ballTextureKey(id, radius) {
-  return `ball-${id}-r${radius}`;
+export function ballTextureKey(id, radius, skin = "standard") {
+  return skin === "standard" ? `ball-${id}-r${radius}` : `ball-${skin}-${id}-r${radius}`;
+}
+
+// Which look a variant's balls take.
+export function skinFor(variant) {
+  return variant === "blackball" ? "blackball" : "standard";
 }
 
 export function toCss(color) {

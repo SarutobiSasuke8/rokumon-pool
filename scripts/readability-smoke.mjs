@@ -15,7 +15,7 @@ const server = createServer(async (request, response) => {
   if (!file.startsWith(root + "/") && !file.startsWith(root + "\\")) return response.writeHead(403).end();
   try {
     const bytes = await readFile(file);
-    response.setHeader("content-type", ({ ".js": "text/javascript", ".html": "text/html" })[extname(file)] ?? "application/octet-stream");
+    response.setHeader("content-type", ({ ".js": "text/javascript", ".html": "text/html", ".css": "text/css", ".webp": "image/webp", ".png": "image/png", ".woff2": "font/woff2", ".woff": "font/woff" })[extname(file)] ?? "application/octet-stream");
     response.end(bytes);
   } catch { response.writeHead(404).end(); }
 });
@@ -67,15 +67,16 @@ function playShortMatch() {
   // Show the aim guide at the nearest object ball for the screenshot.
   const cue = s.balls.get("cue").body.position;
   const target = [...s.balls.values()].find((b) => b.active && b.id !== "cue" && b.id !== 8);
-  s.aiPreview = { angle: Math.atan2(target.body.position.y - cue.y, target.body.position.x - cue.x), power: 0.65, dist: 104, raw: 999, cancelled: false };
-  d.stepFrames(2);
+  s.aiPreview = { angle: Math.atan2(target.body.position.y - cue.y, target.body.position.x - cue.x), power: 0.65 };
+  // Balls at rest ease their nearer number disc back to face the camera.
+  d.stepFrames(40);
   const ui = s.scene.get("UI");
   const inspect = d.inspect();
   return {
     match: d.snapshotState(),
     pocketedObjects: inspect.balls.filter((b) => !b.active && b.id !== "cue").map((b) => Number(b.id)),
-    views: [...s.balls.values()].filter((b) => b.active).map((b) => ({ id: String(b.id), key: b.view.texture.key, visible: b.view.visible, scale: b.view.scaleX })),
-    cards: ui.cards.map((c) => ({ name: c.name.text, group: c.group.text, balls: c.balls.length })),
+    views: [...s.balls.values()].filter((b) => b.active).map((b) => ({ id: String(b.id), key: b.view.texture.key, visible: b.view.visible, scale: b.view.scaleX, tilt: Math.acos(Math.min(1, Math.abs(b.ball.matrix[8]))) })),
+    cards: ui.cards.map((c) => ({ name: c.name.text, lit: c.name.style.color, group: c.group.text, balls: c.balls.length })),
     tray: ui.trayBalls.map((b) => b.texture.key),
     message: ui.msgText.text,
   };
@@ -98,11 +99,12 @@ try {
     await page.goto(origin);
     const canvas = page.locator("canvas");
     await canvas.waitFor();
+    await page.waitForFunction(() => document.body.dataset.screen === "menu");
     await page.waitForTimeout(300);
 
     // Start Two Players from the menu button: a tap on the phone, a click on desktop.
     const box = await canvas.boundingBox();
-    const at = { x: box.x + (480 / 960) * box.width, y: box.y + (340 / 540) * box.height };
+    const at = { x: box.x + (232 / 960) * box.width, y: box.y + (432 / 540) * box.height };
     if (options.hasTouch) await page.touchscreen.tap(at.x, at.y);
     else await page.mouse.click(at.x, at.y);
     await page.waitForFunction(() => window.__GAME_DEBUG__?.getScene?.()?.phase === "aim" && window.__GAME_DEBUG__.getScene().mode === "pvp");
@@ -122,15 +124,16 @@ try {
       }
     }
 
-    await page.screenshot({ path: `tests/evidence/2026-10-23-readability-${name}-rack.png` });
+    await page.screenshot({ path: `tests/evidence/2026-11-10-readability-${name}-rack.png` });
     const state = await page.evaluate(playShortMatch);
     await page.waitForTimeout(200);
-    await page.screenshot({ path: `tests/evidence/2026-10-23-readability-${name}-midgame.png` });
+    await page.screenshot({ path: `tests/evidence/2026-11-10-readability-${name}-midgame.png` });
 
     for (const v of state.views) {
-      assert.equal(v.key, `ball-${v.id}-r11`, `${name}: ball ${v.id} shows its own texture`);
+      assert.ok(v.key.startsWith(`ball-live-${v.id}-`), `${name}: ball ${v.id} shows its own live texture (${v.key})`);
       assert.ok(v.visible);
-      assert.equal(v.scale, 0.5);
+      assert.ok(Math.abs(v.scale - 1 / 3) < 1e-6);
+      if (v.id !== "cue") assert.ok(v.tilt < 0.12, `${name}: ball ${v.id} at rest shows its number (tilt ${v.tilt.toFixed(2)})`);
     }
     const { assigned, remaining } = state.match;
     assert.ok(assigned[1] && assigned[2] && assigned[1] !== assigned[2], `${name}: groups assigned (${JSON.stringify(assigned)})`);
@@ -140,20 +143,28 @@ try {
       assert.equal(card.group, left === 0 ? "ON THE 8" : assigned[p] === "solid" ? "SOLIDS" : "STRIPES", `${name}: card ${p} group`);
       assert.equal(card.balls, left === 0 ? 1 : 7, `${name}: card ${p} shows the group's balls`);
     });
-    assert.ok(state.cards.some((c) => c.name.startsWith("▶ ")), `${name}: the shooter's card is marked`);
+    assert.equal(state.cards.filter((c) => c.lit === "#e3b458").length, 1, `${name}: exactly the shooter's card is lit`);
     assert.deepEqual(state.tray.map((k) => Number(k.split("-")[1])).sort((a, b) => a - b), state.pocketedObjects.sort((a, b) => a - b), `${name}: tray shows each pocketed ball`);
     assert.ok(state.pocketedObjects.length > 0, `${name}: something was pocketed`);
 
-    // A real drag still shoots with the new HUD on screen: mouse on desktop,
-    // touch events on the phone.
+    // A real pull on the power bar shoots: mouse on desktop, touch events on
+    // the phone.
     await page.evaluate(() => { const s = window.__GAME_DEBUG__.getScene(); s.aiPreview = null; if (s.phase === "placing") window.__GAME_DEBUG__.placeCue(200, 270); });
     const shotsBefore = await page.evaluate(() => window.__GAME_DEBUG__.getScene().shotIndex);
-    const from = { x: box.x + (480 / 960) * box.width, y: box.y + (300 / 540) * box.height };
-    const to = { x: from.x - box.width * 0.08, y: from.y };
+    const from = { x: box.x + (20 / 960) * box.width, y: box.y + (112 / 540) * box.height };
+    const to = { x: from.x, y: box.y + (300 / 540) * box.height };
     if (options.hasTouch) {
       const cdp = await context.newCDPSession(page);
       await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [from] });
-      for (let i = 1; i <= 5; i += 1) await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: from.x + ((to.x - from.x) * i) / 5, y: from.y }] });
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [to] });
+      await page.waitForFunction(() => window.__GAME_DEBUG__.getScene().power > 0.3);
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] });
+      assert.deepEqual(await page.evaluate(() => {
+        const scene = window.__GAME_DEBUG__.getScene();
+        return [scene.shotIndex, scene.isDragging, scene.power];
+      }), [shotsBefore, false, 0], "an interrupted touch must drop the power pull without shooting");
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [from] });
+      for (let i = 1; i <= 5; i += 1) await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: from.x, y: from.y + ((to.y - from.y) * i) / 5 }] });
       await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
     } else {
       await page.mouse.move(from.x, from.y);
@@ -162,8 +173,25 @@ try {
       await page.mouse.up();
     }
     await page.waitForFunction((n) => window.__GAME_DEBUG__.getScene().shotIndex > n, shotsBefore, { timeout: 5000 });
+    if (options.hasTouch) {
+      // Rotation covers the entire match on a phone. Stop the simulation
+      // until the player can see the table again and explicitly resumes.
+      await page.setViewportSize({ width: 375, height: 667 });
+      await page.locator("#rotate").waitFor({ state: "visible" });
+      await page.waitForFunction(() => window.__GAME_DEBUG__.getScene().scene.isPaused("Game"), null, { timeout: 3000 });
+      const frames = await page.evaluate(() => window.__GAME_DEBUG__.getScene().shotFrames);
+      await page.waitForTimeout(150);
+      assert.equal(await page.evaluate(() => window.__GAME_DEBUG__.getScene().shotFrames), frames);
+      await page.setViewportSize(options.viewport);
+      await page.locator("#rotate").waitFor({ state: "hidden" });
+      assert.ok(await page.evaluate(() => window.__GAME_DEBUG__.getScene().scene.isPaused("Game")));
+      // Resume is an explicit button on the pause menu.
+      await page.touchscreen.tap(box.x + (480 / 960) * box.width, box.y + (146 / 540) * box.height);
+      await page.waitForFunction(() => window.__GAME_DEBUG__.getScene().scene.isActive("Game"));
+      assert.equal(await page.evaluate(() => window.__GAME_DEBUG__.getScene().shotIndex), shotsBefore + 1);
+    }
     assert.deepEqual(errors, [], `${name}: no page errors`);
-    console.log(`ok - ${name}: 16 ball textures, groups ${assigned[1]}/${assigned[2]}, tray ${state.tray.length}, ${options.hasTouch ? "touch" : "mouse"} drag shoots`);
+    console.log(`ok - ${name}: 16 ball textures, groups ${assigned[1]}/${assigned[2]}, tray ${state.tray.length}, ${options.hasTouch ? "touch" : "mouse"} power pull shoots`);
     await context.close();
   }
   console.log("Ball readability smoke passed on desktop and phone.");

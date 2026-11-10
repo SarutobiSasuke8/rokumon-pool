@@ -25,7 +25,15 @@ export function installDebug(scene, getState) {
     shootCue: (angleDeg, power = 1) => scene.debugShoot?.(angleDeg, power),
     teleportToPocket: (id, pocketIndex = 0) => scene.debugTeleportToPocket?.(id, pocketIndex),
     placeCue: (x, y) => { scene.moveCueForPlacement?.(x, y); if (scene.placementValid) scene.confirmPlacement?.(); return scene.phase; },
+    // Turn the cue (degrees) and shoot through the same path as the power bar.
+    aim: (angleDeg) => { scene.aimAngle = (angleDeg * Math.PI) / 180; return scene.aimAngle; },
+    strike: (power = 0.5) => scene.strikeCue?.(scene.aimAngle, power),
     inspect: () => ({
+      aimAngle: scene.aimAngle,
+      power: scene.power,
+      canReplace: scene.canReplace,
+      kitchenOnly: scene.kitchenOnly,
+      stats: scene.stats,
       phase: scene.phase,
       mode: scene.mode,
       difficulty: scene.difficulty,

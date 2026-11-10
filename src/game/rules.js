@@ -1,11 +1,38 @@
 import { ballKind } from "./state.js";
 
-// Pure 8-ball shot resolution. Takes the match state as it was when the shot
-// was taken plus what happened during the shot, and returns the next state
-// with a description of the outcome. No Phaser, no physics, so it can be
-// exercised from the debug harness or a unit test.
+// Pure shot resolution for every variant. Takes the match state as it was
+// when the shot was taken plus what happened during the shot, and returns
+// the next state with a description of the outcome. No Phaser, no physics,
+// so it can be exercised from the debug harness or a unit test.
+//
+// Every result carries:
+//   match        the next match state
+//   winner       1, 2 or null
+//   foulReason   short reason, or null
+//   placement    where the incoming player puts the cue ball:
+//                "none" (it stays where it lies), "kitchen" (behind the
+//                head string) or "anywhere"
+//   ballInHand   placement !== "none"
+//   shots        shots the player now at the table has this visit
+//   continueTurn the shooter potted and stays
+//   respot       balls to put back on the table
+//   message      player-facing text in "Player N" terms
+
+const WORDS = Object.freeze({
+  eightball: Object.freeze({ solid: "solid", stripe: "stripe", eight: "the 8-ball" }),
+  blackball: Object.freeze({ solid: "red", stripe: "yellow", eight: "the black" }),
+});
+
+function words(match) {
+  return WORDS[match.variant] || WORDS.eightball;
+}
+
+export function lowestBall(match) {
+  return match.balls && match.balls.length ? Math.min(...match.balls) : null;
+}
 
 export function legalFirstTarget(match, player) {
+  if (match.variant === "nineball") return "lowest";
   const suit = match.assigned[player];
   if (!suit) return "open";
   if (match.remaining[suit].length === 0) return "eight";
@@ -14,6 +41,7 @@ export function legalFirstTarget(match, player) {
 
 export function isLegalFirstContact(match, player, ballId) {
   if (ballId == null) return false;
+  if (match.variant === "nineball") return Number(ballId) === lowestBall(match);
   const target = legalFirstTarget(match, player);
   const kind = ballKind(ballId);
   if (target === "open") return kind !== "eight";
@@ -21,16 +49,26 @@ export function isLegalFirstContact(match, player, ballId) {
   return kind === target;
 }
 
-function describeBall(id) {
+function describeBall(match, id) {
+  const w = words(match);
   const kind = ballKind(id);
-  if (kind === "eight") return "the 8-ball";
-  return `a ${kind} (${id})`;
+  if (kind === "eight") return w.eight;
+  return match.variant === "blackball" ? `a ${w[kind]}` : `a ${w[kind]} (${id})`;
 }
 
-export function resolveShot(match, { pocketed = [], firstContact = null, isBreak = false } = {}) {
+export function resolveShot(match, shot = {}) {
+  return match.variant === "nineball" ? resolveNineBall(match, shot) : resolveEightBall(match, shot);
+}
+
+// 8-ball and blackball, pub rules: a foul gives the opponent two shots. The
+// cue ball stays where it lies unless it was pocketed, when it comes back
+// behind the head string. A pot does not use up a shot.
+function resolveEightBall(match, { pocketed = [], firstContact = null, isBreak = false } = {}) {
   const next = JSON.parse(JSON.stringify(match));
+  const w = words(match);
   const player = next.turn;
   const other = player === 1 ? 2 : 1;
+  const shotsBefore = match.shots ?? 1;
   const scratched = pocketed.includes("cue");
   // The 8 dropping on the break is not a loss: it is respotted and the shot
   // otherwise resolves normally (a scratch alongside it is still a foul).
@@ -46,22 +84,25 @@ export function resolveShot(match, { pocketed = [], firstContact = null, isBreak
   let foulReason = null;
   if (scratched) foulReason = "scratch";
   else if (firstContact == null) foulReason = "no ball hit";
-  else if (!isLegalFirstContact(match, player, firstContact)) foulReason = `hit ${describeBall(firstContact)} first`;
+  else if (!isLegalFirstContact(match, player, firstContact)) foulReason = `hit ${describeBall(match, firstContact)} first`;
 
   objectBalls.forEach((num) => {
     const kind = ballKind(num);
     next.remaining[kind] = next.remaining[kind].filter((n) => n !== num);
   });
 
+  const done = (extra) => ({ match: next, winner: null, foulReason, placement: "none", ballInHand: false, shots: next.shots, continueTurn: false, respot: [], respotEight: false, message: "", ...extra });
+
   if (eightPocketed) {
     next.gameOver = true;
+    next.shots = 1;
     if (clearedBefore && !foulReason) {
       next.winner = player;
-      return { match: next, winner: player, foulReason: null, ballInHand: false, continueTurn: false, message: `Player ${player} cleared the table and sank the 8-ball!` };
+      return done({ winner: player, foulReason: null, message: `Player ${player} cleared the table and sank ${w.eight}!` });
     }
     next.winner = other;
     const why = clearedBefore ? "on a foul" : "early";
-    return { match: next, winner: other, foulReason, ballInHand: false, continueTurn: false, message: `Player ${player} pocketed the 8-ball ${why}. Player ${other} wins!` };
+    return done({ winner: other, message: `Player ${player} pocketed ${w.eight} ${why}. Player ${other} wins!` });
   }
 
   let continueTurn = false;
@@ -76,16 +117,68 @@ export function resolveShot(match, { pocketed = [], firstContact = null, isBreak
   }
 
   let message = "";
+  let placement = "none";
   if (foulReason) {
     next.turn = other;
-    message = `Foul: ${foulReason}. Player ${other} has ball in hand.`;
+    next.shots = 2;
+    placement = scratched ? "kitchen" : "none";
+    message = `Foul: ${foulReason}. Player ${other} has two shots${scratched ? ", cue ball behind the line" : ""}.`;
   } else if (continueTurn) {
-    message = `Player ${player} pots and stays at the table.`;
+    next.shots = shotsBefore;
+    message = shotsBefore > 1 ? `Player ${player} pots and still has two shots.` : `Player ${player} pots and stays at the table.`;
+  } else if (shotsBefore > 1) {
+    next.shots = shotsBefore - 1;
+    message = `Player ${player} has one shot left.`;
   } else {
     next.turn = other;
+    next.shots = 1;
   }
 
-  if (respotEight) message = `${message ? `${message} ` : ""}The 8-ball dropped on the break and is respotted.`.trim();
+  if (respotEight) message = `${message ? `${message} ` : ""}${w.eight[0].toUpperCase()}${w.eight.slice(1)} dropped on the break and is respotted.`.trim();
 
-  return { match: next, winner: null, foulReason, ballInHand: Boolean(foulReason), continueTurn, respotEight, message };
+  return done({ placement, ballInHand: placement !== "none", shots: next.shots, continueTurn, respot: respotEight ? [8] : [], respotEight, message });
+}
+
+// 9-ball: the cue ball must hit the lowest ball on the table first. Any ball
+// potted on a legal shot keeps the shooter at the table, and the 9 going
+// down on a legal shot wins at any time. A foul gives ball in hand anywhere.
+function resolveNineBall(match, { pocketed = [], firstContact = null } = {}) {
+  const next = JSON.parse(JSON.stringify(match));
+  const player = next.turn;
+  const other = player === 1 ? 2 : 1;
+  const lowest = lowestBall(match);
+  const scratched = pocketed.includes("cue");
+  const objectBalls = pocketed.filter((id) => id !== "cue");
+
+  let foulReason = null;
+  if (scratched) foulReason = "scratch";
+  else if (firstContact == null) foulReason = "no ball hit";
+  else if (Number(firstContact) !== lowest) foulReason = `hit the ${firstContact} first, the ${lowest} was on`;
+
+  next.balls = next.balls.filter((n) => !objectBalls.includes(n));
+  next.shots = 1;
+  const ninePotted = objectBalls.includes(9);
+  const done = (extra) => ({ match: next, winner: null, foulReason, placement: "none", ballInHand: false, shots: 1, continueTurn: false, respot: [], respotEight: false, message: "", ...extra });
+
+  if (ninePotted && !foulReason) {
+    next.gameOver = true;
+    next.winner = player;
+    return done({ winner: player, message: `Player ${player} potted the 9-ball!` });
+  }
+
+  const respot = [];
+  if (ninePotted) {
+    // The 9 down on a foul comes back; the game goes on.
+    next.balls = [...next.balls, 9].sort((a, b) => a - b);
+    respot.push(9);
+  }
+
+  if (foulReason) {
+    next.turn = other;
+    const back = ninePotted ? " The 9-ball is respotted." : "";
+    return done({ placement: "anywhere", ballInHand: true, respot, message: `Foul: ${foulReason}. Player ${other} has ball in hand.${back}` });
+  }
+  if (objectBalls.length) return done({ continueTurn: true, message: `Player ${player} pots and stays at the table.` });
+  next.turn = other;
+  return done({});
 }

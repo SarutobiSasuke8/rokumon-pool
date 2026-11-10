@@ -1,30 +1,44 @@
 import Phaser from "phaser";
-import { TABLE, BALL, PHYSICS, INPUT, COLORS, RACK_ORDER, AI_DIFFICULTY, resolveDifficulty } from "../game/constants.js";
-import { createMatchState, snapshotMatch } from "../game/state.js";
+import { TABLE, BALL, PHYSICS, INPUT, COLORS, AI_DIFFICULTY, POWER_BAR, PLAY_ZONE, SPIN, rackFor, resolveDifficulty } from "../game/constants.js";
+import { createMatchState, pottedCount, resolveVariant, snapshotMatch } from "../game/state.js";
+import { skinFor } from "../game/balls.js";
+import { recordCampaignResult } from "../systems/campaign.js";
 import { resolveShot, isLegalFirstContact } from "../game/rules.js";
 import { withNames as formatNames } from "../game/labels.js";
 import { projectCuePath } from "../game/aim.js";
-import { ballTextureKey } from "../game/balls.js";
 import { ART_SCALE, ensureBallTextures, shadowTextureKey } from "../systems/ballArt.js";
+import { BallView } from "../systems/ballRender.js";
+import { CUE_ART_SCALE, CUE_KEY, CUE_SHADOW_KEY, ensureCueTextures } from "../systems/cueArt.js";
 import { planShot, planPlacement } from "../game/ai.js";
 import { createRestartKey } from "../systems/input.js";
 import { installDebug } from "../systems/debug.js";
 import { audio } from "../systems/audio.js";
+import { recordResult } from "../systems/stats.js";
+import { loadSettings } from "../systems/settings.js";
 import { hub } from "../integrations/hub.js";
+import { FONT, UI, VIEW, addText, setupCamera } from "../ui/theme.js";
 
 const { Sleeping } = Phaser.Physics.Matter.Matter;
 
 export const PHASE = Object.freeze({
-  AIM: "aim",           // waiting for the player to drag and release
+  AIM: "aim",           // the shooter turns the cue and sets power
   SHOOTING: "shooting", // balls in motion, waiting for rest
-  PLACING: "placing",   // ball in hand: player positions the cue ball
+  PLACING: "placing",   // ball in hand: the cue ball is being positioned
   OVER: "over",
 });
 
 const CUE_START = Object.freeze({ x: TABLE.left + (TABLE.right - TABLE.left) * 0.25, y: TABLE.midY });
+const FOOT_X = TABLE.left + (TABLE.right - TABLE.left) * 0.62;
 
 // Strength (skill, shot choice, placement) comes from AI_DIFFICULTY.
 const AI = Object.freeze({ player: 2, thinkMs: 800, previewMs: 700 });
+
+// Frames for the cue to travel from its drawn-back position to the ball,
+// and for it to fade out afterwards.
+const STRIKE_FRAMES = 5;
+const FADE_FRAMES = 16;
+
+const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 
 export class GameScene extends Phaser.Scene {
   constructor() { super("Game"); }
@@ -32,11 +46,19 @@ export class GameScene extends Phaser.Scene {
   init(data) {
     this.mode = data?.mode === "ai" ? "ai" : "pvp";
     this.difficulty = resolveDifficulty(data?.difficulty);
-    this.names = this.mode === "ai" ? { 1: "You", 2: "Computer" } : { 1: "Player 1", 2: "Player 2" };
+    this.variant = resolveVariant(data?.variant);
+    // A campaign opponent: a named character with their own way of playing.
+    this.opponent = this.mode === "ai" && data?.opponent ? data.opponent : null;
+    this.names = this.mode === "ai" ? { 1: "You", 2: this.opponent ? this.opponent.name : "Computer" } : { 1: "Player 1", 2: "Player 2" };
   }
 
   create() {
-    this.match = createMatchState();
+    setupCamera(this);
+    // A plain DOM marker so tests (and the hub) can tell which screen is up.
+    document.body.dataset.screen = "game";
+    this.settings = loadSettings();
+    this.match = createMatchState(this.variant);
+    this.skin = skinFor(this.variant);
     this.aiPending = false;
     this.aiPreview = null;
     this.shotIndex = 0;
@@ -47,36 +69,64 @@ export class GameScene extends Phaser.Scene {
     this.pocketedOrder = [];
     this.firstContact = null;
     this.phase = PHASE.AIM;
-    this.isDragging = false;
-    this.dragStart = null;
-    this.dragCurrent = null;
+    this.aimAngle = 0;
+    this.power = 0;
+    this.aimDrag = null;
+    this.powerDrag = false;
+    this.placeDrag = false;
+    this.strike = null;
+    this.cueFade = null;
+    this.canReplace = false;
+    this.kitchenOnly = false;
     this.placementValid = false;
     this.shotFrames = 0;
     this.isBreak = true;
+    this.shotSpin = { x: 0, y: 0 };
+    this.shotDir = { x: 1, y: 0 };
+    this.pendingFollow = null;
+    this.pendingSide = null;
+    this.stats = { 1: { shots: 0, pots: 0, fouls: 0, run: 0, bestRun: 0 }, 2: { shots: 0, pots: 0, fouls: 0, run: 0, bestRun: 0 } };
+    this.registry.set("spin", { x: 0, y: 0 });
 
     this.drawTable();
     this.createCushions();
     this.createPockets();
     ensureBallTextures(this, BALL.radius);
+    ensureCueTextures(this, INPUT.cueLength);
     this.createBalls();
 
     this.aimGfx = this.add.graphics().setDepth(5);
-    this.placeGfx = this.add.graphics().setDepth(6);
+    this.cueShadow = this.add.image(0, 0, CUE_SHADOW_KEY).setOrigin(1, 0.5).setScale(1 / CUE_ART_SCALE).setDepth(5.5).setVisible(false);
+    this.cueView = this.add.image(0, 0, CUE_KEY).setOrigin(1, 0.5).setScale(1 / CUE_ART_SCALE).setDepth(6).setVisible(false);
+    this.placeGfx = this.add.graphics().setDepth(6.5);
+    this.powerGfx = this.add.graphics().setDepth(7);
+    this.powerLabel = addText(this, POWER_BAR.x + POWER_BAR.w / 2, POWER_BAR.y - 9, "POWER", { fontFamily: FONT.display, fontStyle: "600", fontSize: "11px", color: UI.css.dim }).setOrigin(0.5, 1).setDepth(7);
+    this.powerValue = addText(this, POWER_BAR.x + POWER_BAR.w / 2, POWER_BAR.y + POWER_BAR.h + 8, "", { fontFamily: FONT.display, fontStyle: "700", fontSize: "13px", color: UI.css.brass }).setOrigin(0.5, 0).setDepth(7);
     this.setupInput();
 
     this.restartKey = createRestartKey(this);
+    this.cursors = this.input.keyboard.createCursorKeys();
     this.matter.world.on("collisionstart", (event) => this.handleCollisions(event));
+
+    // Live ball textures belong to this match: free them when it ends.
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.balls.forEach((entry) => entry.ball.destroy()));
 
     this.scene.launch("UI");
     hub.ready();
     hub.score(0);
     this.hubStartedAt = performance.now();
-    this.updateHud(`${this.names[1]} break${this.mode === "ai" ? "" : "s"}. Drag anywhere on the table to aim, release to shoot.`);
+    this.resetAim();
+    audio.rack();
+    this.updateHud(`${this.names[1]} break${this.mode === "ai" ? "" : "s"}.`);
     installDebug(this, () => snapshotMatch(this.match));
   }
 
   isAiTurn() {
     return this.mode === "ai" && this.match.turn === AI.player && !this.match.gameOver;
+  }
+
+  humanCanAct() {
+    return this.phase === PHASE.AIM && !this.isAiTurn() && !this.strike && !this.match.gameOver;
   }
 
   // Player-facing text. The rules module speaks in "Player N"; the scene
@@ -91,7 +141,7 @@ export class GameScene extends Phaser.Scene {
       player: AI.player,
       balls: [...this.balls.values()].filter((e) => e.active).map((e) => ({ id: e.id, x: e.body.position.x, y: e.body.position.y })),
       pockets: this.pocketPositions(),
-      bounds: TABLE,
+      bounds: this.kitchenOnly ? { ...TABLE, right: CUE_START.x } : TABLE,
       radius: BALL.radius,
       maxShotSpeed: PHYSICS.maxShotSpeed,
       ...this.aiTuning(),
@@ -100,19 +150,21 @@ export class GameScene extends Phaser.Scene {
   }
 
   aiTuning() {
-    const { skill, weakShotChance, loosePlacement } = AI_DIFFICULTY[this.difficulty];
+    const { skill, weakShotChance, loosePlacement } = this.opponent?.tuning ?? AI_DIFFICULTY[this.difficulty];
     return { skill, weakShotChance, loosePlacement };
   }
 
-  // Data that restarts this match in the same mode and difficulty.
+  // Data that restarts this match in the same game, mode and difficulty.
   restartData() {
-    return this.mode === "ai" ? { mode: this.mode, difficulty: this.difficulty } : { mode: this.mode };
+    const base = { mode: this.mode, variant: this.variant };
+    if (this.mode !== "ai") return base;
+    return this.opponent ? { ...base, opponent: this.opponent } : { ...base, difficulty: this.difficulty };
   }
 
   // Called from update() while it is the computer's turn. Placement is
   // immediate; the shot is shown as an aim preview for a moment, then taken.
   aiAct() {
-    if (this.aiPending) return;
+    if (this.aiPending || this.strike) return;
     if (this.phase === PHASE.PLACING) {
       const spot = planPlacement(this.aiContext());
       this.moveCueForPlacement(spot.x, spot.y);
@@ -122,35 +174,49 @@ export class GameScene extends Phaser.Scene {
     if (this.phase !== PHASE.AIM) return;
     this.aiPending = true;
     this.updateHud(`${this.names[AI.player]} is lining up a shot.`);
-    this.time.delayedCall(AI.thinkMs, () => {
+    this.time.delayedCall(this.opponent?.tuning?.thinkMs ?? AI.thinkMs, () => {
       if (this.phase !== PHASE.AIM || !this.isAiTurn()) { this.aiPending = false; return; }
       const plan = planShot(this.aiContext());
       if (!plan) { this.aiPending = false; return; }
-      this.aiPreview = { angle: plan.angle, power: plan.power, dist: plan.power * PHYSICS.maxPullback, raw: 999, cancelled: false };
+      // Some characters hit everything harder, or softer, than they need to.
+      plan.power = Phaser.Math.Clamp(plan.power * (this.opponent?.tuning?.powerBias ?? 1), 0.12, 1);
+      this.aiPreview = { angle: plan.angle, power: plan.power };
       this.time.delayedCall(AI.previewMs, () => {
         this.aiPreview = null;
         this.aiPending = false;
-        if (this.phase === PHASE.AIM && this.isAiTurn()) this.takeShot(plan.angle, plan.power);
+        if (this.phase === PHASE.AIM && this.isAiTurn()) this.strikeCue(plan.angle, plan.power);
       });
     });
   }
 
-  // Drop a half-finished aim when the match pauses: the release may never
-  // arrive, and a stale drag would block the next one.
+  // Drop a half-finished aim or power pull when the match pauses or the OS
+  // cancels a touch: the release may never arrive.
   cancelDrag() {
-    this.isDragging = false;
-    this.dragStart = null;
-    this.dragCurrent = null;
+    this.aimDrag = null;
+    this.powerDrag = false;
+    this.placeDrag = false;
+    this.power = 0;
   }
 
   // Kept for the debug harness and older callers.
   get waitingForRest() { return this.phase === PHASE.SHOOTING; }
+  get isDragging() { return Boolean(this.aimDrag) || this.powerDrag; }
 
   update() {
     this.balls.forEach((entry) => {
       if (!entry.active) return;
-      entry.view.setPosition(entry.body.position.x, entry.body.position.y);
-      entry.shadow.setPosition(entry.body.position.x + BALL.radius * 0.22, entry.body.position.y + BALL.radius * 0.3);
+      const { x, y } = entry.body.position;
+      entry.view.setPosition(x, y);
+      entry.shadow.setPosition(x + BALL.radius * 0.28, y + BALL.radius * 0.36);
+      if (this.phase === PHASE.SHOOTING) {
+        entry.ball.roll(x - entry.last.x, y - entry.last.y);
+        if (entry.id === "cue" && this.shotSpin.x) entry.ball.twist(this.shotSpin.x * 0.22);
+      } else {
+        entry.ball.settle();
+      }
+      entry.last.x = x;
+      entry.last.y = y;
+      entry.ball.redraw();
     });
 
     if (this.restartKey.restartPressed()) {
@@ -159,8 +225,11 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (this.isAiTurn() && (this.phase === PHASE.AIM || this.phase === PHASE.PLACING)) this.aiAct();
+    if (this.humanCanAct()) this.keyboardAim();
+    if (this.strike) this.advanceStrike();
 
     if (this.phase === PHASE.SHOOTING) {
+      this.applySpin();
       this.applyRollingResistance();
       // Count simulated frames, not wall-clock time: a throttled or hidden
       // tab must not force-stop a shot that has barely been simulated.
@@ -173,6 +242,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.drawAim();
+    this.drawPower();
     this.drawPlacement();
   }
 
@@ -190,6 +260,25 @@ export class GameScene extends Phaser.Scene {
   }
 
   drawTable() {
+    // The rendered table (art/blender) covers the whole view: room, rails,
+    // cloth and pockets, lit from above. If it is missing the game falls
+    // back to a table drawn in code.
+    if (this.textures.exists("table")) {
+      this.add.image(VIEW.w / 2, VIEW.h / 2, "table").setDisplaySize(VIEW.w, VIEW.h).setDepth(0);
+    } else {
+      this.drawTableFallback();
+    }
+
+    // Head string and spots, so ball-in-hand placement has a visual anchor.
+    const g = this.add.graphics().setDepth(0.5);
+    g.lineStyle(1, 0xffffff, 0.1);
+    g.lineBetween(CUE_START.x, TABLE.top + 2, CUE_START.x, TABLE.bottom - 2);
+    g.fillStyle(0xffffff, 0.22);
+    g.fillCircle(CUE_START.x, CUE_START.y, 2.2);
+    g.fillCircle(FOOT_X, CUE_START.y, 2.2);
+  }
+
+  drawTableFallback() {
     const g = this.add.graphics();
     const t = TABLE.cushionThickness;
     const w = TABLE.right - TABLE.left;
@@ -203,14 +292,6 @@ export class GameScene extends Phaser.Scene {
     g.fillStyle(COLORS.cloth, 1);
     g.fillRect(TABLE.left + 6, TABLE.top + 6, w - 12, h - 12);
 
-    // Head string marker so ball-in-hand placement has a visual anchor.
-    g.lineStyle(1, 0xffffff, 0.12);
-    g.lineBetween(CUE_START.x, TABLE.top + 6, CUE_START.x, TABLE.bottom - 6);
-    g.fillStyle(0xffffff, 0.18);
-    g.fillCircle(CUE_START.x, CUE_START.y, 3);
-    g.fillCircle(TABLE.left + w * 0.62, CUE_START.y, 3);
-
-    // Rail diamonds.
     g.fillStyle(0xe8d9b5, 0.7);
     for (let i = 1; i < 8; i += 1) {
       if (i === 4) continue;
@@ -273,17 +354,16 @@ export class GameScene extends Phaser.Scene {
     const r = BALL.radius;
     this.addBall("cue", CUE_START.x, CUE_START.y);
 
-    const apexX = TABLE.left + (TABLE.right - TABLE.left) * 0.62;
     const pitch = r * 2 + PHYSICS.rackGap;
     const rowDX = pitch * Math.cos(Math.PI / 6);
     // A perfectly aligned rack behaves like a Newton's cradle: the impulse
     // runs straight through and only the back-corner balls fly. A sub-pixel
     // jitter, as in any real rack, scatters the wave across the whole pack.
     const jitter = () => (Math.random() - 0.5) * PHYSICS.rackJitter * 2;
-    RACK_ORDER.forEach((row, rowIndex) => {
-      const x = apexX + rowIndex * rowDX;
+    rackFor(this.variant).forEach((row, rowIndex) => {
+      const x = FOOT_X + rowIndex * rowDX;
       row.forEach((num, i) => {
-        const y = TABLE.midY + (i - rowIndex / 2) * pitch;
+        const y = TABLE.midY + (i - (row.length - 1) / 2) * pitch;
         this.addBall(num, x + jitter(), y + jitter());
       });
     });
@@ -299,11 +379,12 @@ export class GameScene extends Phaser.Scene {
     });
     this.matter.world.add(body);
 
-    // Painted textures (src/systems/ballArt.js): numbers on every object
-    // ball, white caps on the stripes, a dark rim against the cloth.
-    const shadow = this.add.image(x + r * 0.22, y + r * 0.3, shadowTextureKey(r)).setScale(1 / ART_SCALE).setDepth(1.5);
-    const view = this.add.image(x, y, ballTextureKey(id, r)).setScale(1 / ART_SCALE).setDepth(2);
-    this.balls.set(String(id), { id, body, view, shadow, active: true });
+    // A live shaded sphere (src/systems/ballRender.js) over a soft contact
+    // shadow on its own layer, so it never darkens a neighbour in the rack.
+    const shadow = this.add.image(x + r * 0.28, y + r * 0.36, shadowTextureKey(r)).setScale(1.12 / ART_SCALE).setDepth(1.5);
+    const ball = new BallView(this, id, r, x, y, this.skin);
+    ball.image.setDepth(2);
+    this.balls.set(String(id), { id, body, ball, view: ball.image, shadow, active: true, last: { x, y } });
     return this.balls.get(String(id));
   }
 
@@ -318,76 +399,166 @@ export class GameScene extends Phaser.Scene {
 
   // ---- input / aiming -----------------------------------------------------
 
+  inPowerZone(p) {
+    return p.worldX <= POWER_BAR.zoneRight && p.worldY >= POWER_BAR.y - 30 && p.worldY <= POWER_BAR.y + POWER_BAR.h + 30;
+  }
+
+  inPlayZone(p) {
+    return p.worldX > PLAY_ZONE.left && p.worldX < PLAY_ZONE.right && p.worldY > PLAY_ZONE.top && p.worldY < PLAY_ZONE.bottom;
+  }
+
+  powerFromY(y) {
+    return Phaser.Math.Clamp((y - POWER_BAR.y) / POWER_BAR.h, 0, 1);
+  }
+
+  angleFromCue(x, y) {
+    const cue = this.balls.get("cue");
+    if (!cue) return this.aimAngle;
+    return Math.atan2(y - cue.body.position.y, x - cue.body.position.x);
+  }
+
+  // Aim and power are separate. A drag on the table turns the cue by the
+  // angle the pointer sweeps around the cue ball, so the finger never has to
+  // sit on the shot line; a tap points the cue at the tapped spot. Power is
+  // set on the bar in the left margin and the shot goes on release, so full
+  // power is available wherever the cue ball lies.
   setupInput() {
     this.input.on("pointerdown", (p) => {
       audio.unlock();
-      if (this.isAiTurn()) return;
+      if (this.isAiTurn() || this.strike) return;
       if (this.phase === PHASE.PLACING) {
+        if (!this.inPlayZone(p)) return;
+        this.placeDrag = true;
         this.moveCueForPlacement(p.worldX, p.worldY);
         return;
       }
-      if (this.phase !== PHASE.AIM || this.isDragging) return;
-      this.isDragging = true;
-      this.dragStart = { x: p.worldX, y: p.worldY };
-      this.dragCurrent = { x: p.worldX, y: p.worldY };
+      if (this.phase !== PHASE.AIM) return;
+      if (this.inPowerZone(p)) {
+        this.powerDrag = true;
+        this.power = this.powerFromY(p.worldY);
+        return;
+      }
+      if (!this.inPlayZone(p)) return;
+      const cue = this.balls.get("cue");
+      // With ball in hand, pressing on the cue ball picks it up again.
+      if (this.canReplace && cue?.active && Math.hypot(p.worldX - cue.body.position.x, p.worldY - cue.body.position.y) < BALL.radius * 2.2) {
+        this.beginPlacement();
+        this.placeDrag = true;
+        return;
+      }
+      this.aimDrag = { last: this.angleFromCue(p.worldX, p.worldY), x: p.worldX, y: p.worldY, moved: false };
     });
 
     this.input.on("pointermove", (p) => {
       if (this.isAiTurn()) return;
       if (this.phase === PHASE.PLACING) {
-        this.moveCueForPlacement(p.worldX, p.worldY);
+        // A mouse can position by hovering; a finger drags.
+        if (this.placeDrag || !p.wasTouch) this.moveCueForPlacement(p.worldX, p.worldY);
         return;
       }
-      if (!this.isDragging) return;
-      this.dragCurrent = { x: p.worldX, y: p.worldY };
+      if (this.powerDrag) {
+        this.power = this.powerFromY(p.worldY);
+        return;
+      }
+      const d = this.aimDrag;
+      if (!d) return;
+      if (!d.moved && Math.hypot(p.worldX - d.x, p.worldY - d.y) < INPUT.tapSlop) return;
+      const now = this.angleFromCue(p.worldX, p.worldY);
+      if (d.moved) this.aimAngle = wrapAngle(this.aimAngle + wrapAngle(now - d.last));
+      d.moved = true;
+      d.last = now;
     });
 
     const release = (p) => {
-      if (this.isAiTurn()) { this.isDragging = false; return; }
+      // Phaser also delivers an OS-cancelled touch as pointerup.
+      if (p.wasCanceled) { this.cancelDrag(); return; }
+      if (this.isAiTurn()) { this.cancelDrag(); return; }
       if (this.phase === PHASE.PLACING) {
+        if (!this.placeDrag) return;
+        this.placeDrag = false;
         this.moveCueForPlacement(p.worldX, p.worldY);
         if (this.placementValid) this.confirmPlacement();
         return;
       }
-      if (!this.isDragging) return;
-      this.isDragging = false;
-      this.dragCurrent = { x: p.worldX, y: p.worldY };
-      const shot = this.shotFromDrag();
-      this.dragStart = null;
-      if (shot && !shot.cancelled) this.takeShot(shot.angle, shot.power);
+      if (this.powerDrag) {
+        this.powerDrag = false;
+        const power = this.power;
+        if (power >= INPUT.minPower && this.humanCanAct()) this.strikeCue(this.aimAngle, power);
+        else this.power = 0;
+        return;
+      }
+      const d = this.aimDrag;
+      this.aimDrag = null;
+      if (d && !d.moved && this.humanCanAct()) this.aimAngle = this.angleFromCue(p.worldX, p.worldY);
     };
     this.input.on("pointerup", release);
     this.input.on("pointerupoutside", release);
+
+    this.input.on("wheel", (p, over, dx, dy) => {
+      if (this.humanCanAct()) this.aimAngle = wrapAngle(this.aimAngle + dy * INPUT.wheelTurn);
+    });
   }
 
-  // The shot is the vector from where the drag is now back to where it
-  // started: pull back and release, like drawing a catapult. It does not
-  // matter where on the table the drag happens, so a finger never has to
-  // cover the cue ball, and a plain tap (below minDrag) never fires.
-  shotFromDrag() {
-    if (!this.dragStart || !this.dragCurrent) return null;
-    const dx = this.dragStart.x - this.dragCurrent.x;
-    const dy = this.dragStart.y - this.dragCurrent.y;
-    const raw = Math.hypot(dx, dy);
-    const dist = Math.min(raw, PHYSICS.maxPullback);
-    const angle = Math.atan2(dy, dx);
-    const power = dist / PHYSICS.maxPullback;
-    return { angle, power, raw, dist, cancelled: raw < INPUT.minDrag };
+  // Arrow keys nudge the aim; Shift makes the nudge finer.
+  keyboardAim() {
+    const step = this.cursors.shift.isDown ? INPUT.keyTurnFine : INPUT.keyTurn;
+    if (this.cursors.left.isDown) this.aimAngle = wrapAngle(this.aimAngle - step);
+    if (this.cursors.right.isDown) this.aimAngle = wrapAngle(this.aimAngle + step);
+  }
+
+  // Point the cue somewhere sensible at the start of a turn: down the table
+  // on the break, otherwise at the nearest ball the shooter may hit first.
+  resetAim() {
+    this.power = 0;
+    const cue = this.balls.get("cue");
+    if (!cue || !cue.active) return;
+    if (this.shotIndex === 0) { this.aimAngle = 0; return; }
+    const { x, y } = cue.body.position;
+    let best = null;
+    this.activeTargets().forEach((t) => {
+      if (!isLegalFirstContact(this.match, this.match.turn, Number(t.id))) return;
+      const d = Math.hypot(t.x - x, t.y - y);
+      if (!best || d < best.d) best = { d, t };
+    });
+    if (best) this.aimAngle = Math.atan2(best.t.y - y, best.t.x - x);
+  }
+
+  // The cue drives forward from its drawn-back position over a few frames,
+  // and the ball leaves at the moment of contact.
+  strikeCue(angle, power) {
+    if (this.phase !== PHASE.AIM || this.strike) return;
+    this.strike = { angle, power: Phaser.Math.Clamp(power, 0, 1), frame: 0 };
+    this.aimDrag = null;
+    this.powerDrag = false;
+  }
+
+  advanceStrike() {
+    const s = this.strike;
+    s.frame += 1;
+    if (s.frame < STRIKE_FRAMES) return;
+    this.strike = null;
+    this.power = 0;
+    this.takeShot(s.angle, s.power);
   }
 
   takeShot(angle, power) {
     const cue = this.balls.get("cue");
     if (!cue || !cue.active || this.phase !== PHASE.AIM) return;
-    const speed = Phaser.Math.Clamp(power, 0, 1) * PHYSICS.maxShotSpeed;
-    this.launchCue(cue, angle, speed);
-    audio.strike(power);
+    const p = Phaser.Math.Clamp(power, 0, 1);
+    const spin = this.isAiTurn() ? { x: 0, y: 0 } : (this.registry.get("spin") || { x: 0, y: 0 });
+    this.shotSpin = { x: spin.x, y: spin.y };
+    this.stats[this.match.turn].shots += 1;
+    this.cueFade = { frame: 0, angle, x: cue.body.position.x, y: cue.body.position.y };
+    this.launchCue(cue, angle, p * PHYSICS.maxShotSpeed);
+    audio.strike(p);
   }
 
   launchCue(cue, angle, speed) {
     // Matter never wakes a body just because its velocity changed, so a cue
     // ball that fell asleep between turns would otherwise ignore the shot.
     Sleeping.set(cue.body, false);
-    this.matter.body.setVelocity(cue.body, { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed });
+    this.shotDir = { x: Math.cos(angle), y: Math.sin(angle) };
+    this.matter.body.setVelocity(cue.body, { x: this.shotDir.x * speed, y: this.shotDir.y * speed });
     this.beginShot();
   }
 
@@ -405,6 +576,10 @@ export class GameScene extends Phaser.Scene {
     this.wakeAll();
     this.pocketedThisTurn = [];
     this.firstContact = null;
+    this.pendingFollow = null;
+    this.pendingSide = null;
+    this.canReplace = false;
+    this.kitchenOnly = false;
     this.phase = PHASE.SHOOTING;
     this.shotFrames = 0;
     this.currentShotIsBreak = this.shotIndex === 0;
@@ -420,6 +595,7 @@ export class GameScene extends Phaser.Scene {
     Sleeping.set(entry.body, false);
     this.matter.body.setPosition(entry.body, { x: p.x, y: p.y });
     this.matter.body.setVelocity(entry.body, { x: 0, y: 0 });
+    entry.last = { x: p.x, y: p.y };
     if (this.phase !== PHASE.SHOOTING) this.beginShot();
   }
 
@@ -428,87 +604,146 @@ export class GameScene extends Phaser.Scene {
     if (!cue || !cue.active) return;
     if (this.phase === PHASE.PLACING) this.confirmPlacement();
     const angle = Phaser.Math.DegToRad(angleDeg);
+    this.shotSpin = { x: 0, y: 0 };
+    this.stats[this.match.turn].shots += 1;
     this.launchCue(cue, angle, Phaser.Math.Clamp(power, 0, 1) * PHYSICS.maxShotSpeed);
   }
 
+  // What to draw for the cue this frame: the angle and how far it is drawn
+  // back.
+  cuePose() {
+    if (this.strike) {
+      const t = this.strike.frame / STRIKE_FRAMES;
+      return { angle: this.strike.angle, pull: this.strike.power * INPUT.cuePull * (1 - t) ** 2 };
+    }
+    if (this.phase === PHASE.AIM && this.aiPreview) return { angle: this.aiPreview.angle, pull: this.aiPreview.power * INPUT.cuePull };
+    if (this.humanCanAct()) return { angle: this.aimAngle, pull: this.power * INPUT.cuePull };
+    return null;
+  }
+
   drawAim() {
-    this.aimGfx.clear();
-    if (this.phase !== PHASE.AIM) return;
-    const shot = this.aiPreview || (this.isDragging ? this.shotFromDrag() : null);
-    if (!shot || shot.raw < 3) return;
+    const g = this.aimGfx.clear();
+    const r = BALL.radius;
+
+    // Follow-through: the cue rests where it struck and fades away.
+    if (this.cueFade) {
+      const f = this.cueFade;
+      f.frame += 1;
+      const alpha = 1 - f.frame / FADE_FRAMES;
+      if (alpha <= 0) { this.cueFade = null; this.showCue(null); } else this.showCue({ x: f.x, y: f.y, angle: f.angle, gap: r - 3, alpha });
+      return;
+    }
+
+    const pose = this.cuePose();
     const cue = this.balls.get("cue");
-    if (!cue || !cue.active) return;
+    if (!pose || !cue || !cue.active) { this.showCue(null); return; }
 
     const cx = cue.body.position.x;
     const cy = cue.body.position.y;
-    const dir = { x: Math.cos(shot.angle), y: Math.sin(shot.angle) };
-    const r = BALL.radius;
-    const alpha = shot.cancelled ? 0.25 : 1;
+    const dir = { x: Math.cos(pose.angle), y: Math.sin(pose.angle) };
+    this.showCue({ x: cx, y: cy, angle: pose.angle, gap: r + 4 + pose.pull, alpha: 1 });
+    if (!this.settings.guide && !this.aiPreview) return;
 
-    // Projected cue-ball path to the first object ball or cushion: a solid
-    // white line on a dark underlay so it reads on the cloth at phone size.
-    const g = this.aimGfx;
+    // Projected cue-ball path to the first object ball or cushion: a white
+    // line on a dark underlay so it reads on the cloth at phone size.
     const path = projectCuePath({ x: cx, y: cy }, dir, this.activeTargets(), TABLE, r);
-    const sx = cx + dir.x * r;
-    const sy = cy + dir.y * r;
-    if (path.t > r) {
-      g.lineStyle(5, 0x000000, 0.35 * alpha);
+    const sx = cx + dir.x * (r + 2);
+    const sy = cy + dir.y * (r + 2);
+    if (path.t > r + 2) {
+      g.lineStyle(3.5, 0x000000, 0.28);
       g.lineBetween(sx, sy, path.end.x, path.end.y);
-      g.lineStyle(2, 0xffffff, 0.9 * alpha);
+      g.lineStyle(1.5, 0xffffff, 0.92);
       g.lineBetween(sx, sy, path.end.x, path.end.y);
     }
     // Ghost ball where the cue ball will be at contact.
-    g.fillStyle(0xffffff, 0.18 * alpha);
+    g.fillStyle(0xffffff, 0.14);
     g.fillCircle(path.end.x, path.end.y, r);
-    g.lineStyle(2, 0xffffff, 0.9 * alpha);
-    g.strokeCircle(path.end.x, path.end.y, r);
-    if (path.hit) {
-      // The target ring and the object ball's path are green when the ball
-      // is a legal first contact for the shooter, red when it would foul.
-      const legal = isLegalFirstContact(this.match, this.match.turn, Number(path.hit.id));
-      const tint = legal ? 0x4ade80 : 0xf87171;
-      const c = path.hit.center;
-      const len = 90;
-      const tx = c.x + path.hit.dir.x * len;
-      const ty = c.y + path.hit.dir.y * len;
-      g.lineStyle(3, tint, 0.95 * alpha);
-      g.strokeCircle(c.x, c.y, r + 3);
-      g.lineStyle(5, 0x000000, 0.35 * alpha);
-      g.lineBetween(c.x + path.hit.dir.x * (r + 3), c.y + path.hit.dir.y * (r + 3), tx, ty);
-      g.lineStyle(3, tint, 0.95 * alpha);
-      g.lineBetween(c.x + path.hit.dir.x * (r + 3), c.y + path.hit.dir.y * (r + 3), tx, ty);
-      const nx = -path.hit.dir.y;
-      const ny = path.hit.dir.x;
-      g.fillStyle(tint, 0.95 * alpha);
-      g.fillTriangle(
-        tx + path.hit.dir.x * 9, ty + path.hit.dir.y * 9,
-        tx + nx * 6, ty + ny * 6,
-        tx - nx * 6, ty - ny * 6,
-      );
+    g.lineStyle(1.5, 0xffffff, 0.92);
+    g.strokeCircle(path.end.x, path.end.y, r - 0.5);
+    if (!path.hit) return;
+
+    // The target ring and the object ball's path are green when the ball is
+    // a legal first contact for the shooter, red when it would foul.
+    const legal = isLegalFirstContact(this.match, this.match.turn, Number(path.hit.id));
+    const tint = legal ? 0x6fdc9a : 0xf0655c;
+    const c = path.hit.center;
+    const od = path.hit.dir;
+    const len = 78;
+    const ox = c.x + od.x * (r + 3);
+    const oy = c.y + od.y * (r + 3);
+    const tx = c.x + od.x * len;
+    const ty = c.y + od.y * len;
+    g.lineStyle(2, tint, 0.95);
+    g.strokeCircle(c.x, c.y, r + 2.5);
+    g.lineStyle(4, 0x000000, 0.28);
+    g.lineBetween(ox, oy, tx, ty);
+    g.lineStyle(2, tint, 0.95);
+    g.lineBetween(ox, oy, tx, ty);
+    g.fillStyle(tint, 0.95);
+    g.fillTriangle(tx + od.x * 8, ty + od.y * 8, tx - od.y * 5, ty + od.x * 5, tx + od.y * 5, ty - od.x * 5);
+
+    // Where the cue ball heads after the contact (the tangent line).
+    const along = dir.x * od.x + dir.y * od.y;
+    const kx = dir.x - od.x * along;
+    const ky = dir.y - od.y * along;
+    const klen = Math.hypot(kx, ky);
+    if (klen > 0.08) {
+      const reach = 22 + 30 * klen;
+      g.lineStyle(1.5, 0xffffff, 0.45);
+      g.lineBetween(path.end.x + (kx / klen) * r, path.end.y + (ky / klen) * r, path.end.x + (kx / klen) * (r + reach), path.end.y + (ky / klen) * (r + reach));
+    }
+  }
+
+  showCue(pose) {
+    if (!pose) {
+      this.cueView.setVisible(false);
+      this.cueShadow.setVisible(false);
+      return;
+    }
+    const x = pose.x - Math.cos(pose.angle) * pose.gap;
+    const y = pose.y - Math.sin(pose.angle) * pose.gap;
+    this.cueView.setVisible(true).setPosition(x, y).setRotation(pose.angle).setAlpha(pose.alpha);
+    this.cueShadow.setVisible(true).setPosition(x + 5, y + 7).setRotation(pose.angle).setAlpha(pose.alpha * 0.55);
+  }
+
+  // Power bar in the left margin: pull the handle down and let go to shoot.
+  drawPower() {
+    const g = this.powerGfx.clear();
+    const { x, y, w, h } = POWER_BAR;
+    const mine = this.humanCanAct() || Boolean(this.strike && !this.isAiTurn());
+    const dim = mine ? 1 : 0.35;
+    const power = this.strike ? this.strike.power : (this.aiPreview ? this.aiPreview.power : this.power);
+
+    g.fillStyle(0x000000, 0.5 * dim);
+    g.fillRoundedRect(x - 3, y - 3, w + 6, h + 6, 9);
+    g.fillStyle(UI.panel, dim);
+    g.fillRoundedRect(x, y, w, h, 7);
+    g.lineStyle(1, UI.brassDark, 0.9 * dim);
+    g.strokeRoundedRect(x - 0.5, y - 0.5, w + 1, h + 1, 7);
+
+    // Tick marks every quarter.
+    g.lineStyle(1, 0xffffff, 0.16 * dim);
+    for (let i = 1; i < 4; i += 1) g.lineBetween(x + 4, y + (h * i) / 4, x + w - 4, y + (h * i) / 4);
+
+    const fill = h * power;
+    if (fill > 1) {
+      const col = Phaser.Display.Color.GetColor(90 + power * 150, 205 - power * 135, 110 - power * 70);
+      g.fillStyle(col, 0.92 * dim);
+      g.fillRoundedRect(x + 3, y + 3, w - 6, Math.max(6, fill - 3), 4);
     }
 
-    // Cue stick, pulled back with the drag.
-    const gap = r + 6 + shot.dist * 0.6;
-    const bx = cx - dir.x * gap;
-    const by = cy - dir.y * gap;
-    const ex = bx - dir.x * INPUT.cueLength;
-    const ey = by - dir.y * INPUT.cueLength;
-    g.lineStyle(7, 0x2b1a0e, 0.9 * alpha);
-    g.lineBetween(bx, by, ex, ey);
-    g.lineStyle(5, COLORS.stick, 1 * alpha);
-    g.lineBetween(bx - dir.x * 8, by - dir.y * 8, ex, ey);
-    g.lineStyle(5, COLORS.stickTip, 1 * alpha);
-    g.lineBetween(bx, by, bx - dir.x * 8, by - dir.y * 8);
+    // Handle: a brass grip that sits at the current power.
+    const hy = y + fill;
+    g.fillStyle(0x000000, 0.45 * dim);
+    g.fillRoundedRect(x - 5, hy - 6 + 2, w + 10, 14, 5);
+    g.fillStyle(this.powerDrag ? 0xf2c869 : UI.brass, dim);
+    g.fillRoundedRect(x - 5, hy - 7, w + 10, 14, 5);
+    g.lineStyle(1, 0x5c4312, 0.9 * dim);
+    g.lineBetween(x + 2, hy - 2, x + w - 2, hy - 2);
+    g.lineBetween(x + 2, hy + 2, x + w - 2, hy + 2);
 
-    // Power meter in the left margin, filling upwards, so it never sits on
-    // the HUD text under the table.
-    const meter = { x: 12, y: 110, w: 14, h: 320 };
-    const fill = Math.max(4, meter.h * shot.power);
-    const col = Phaser.Display.Color.GetColor(80 + shot.power * 175, 210 - shot.power * 130, 255 - shot.power * 175);
-    g.fillStyle(0x000000, 0.55 * alpha);
-    g.fillRoundedRect(meter.x - 2, meter.y - 2, meter.w + 4, meter.h + 4, 5);
-    g.fillStyle(col, 1 * alpha);
-    g.fillRoundedRect(meter.x, meter.y + meter.h - fill, meter.w, fill, 4);
+    this.powerLabel.setAlpha(dim);
+    this.powerValue.setAlpha(dim).setText(power > 0.01 ? `${Math.round(power * 100)}` : "");
   }
 
   // ---- ball in hand ---------------------------------------------------------
@@ -522,10 +757,12 @@ export class GameScene extends Phaser.Scene {
     // Lift the cue ball out of the simulation while it is being positioned so
     // it cannot shove other balls around.
     this.matter.world.remove(cue.body);
-    cue.view.setAlpha(0.75);
+    cue.view.setAlpha(0.8);
     cue.shadow.setAlpha(0.4);
     this.phase = PHASE.PLACING;
-    this.isDragging = false;
+    this.aimDrag = null;
+    this.powerDrag = false;
+    this.power = 0;
     this.moveCueForPlacement(cue.body.position.x, cue.body.position.y);
   }
 
@@ -534,12 +771,14 @@ export class GameScene extends Phaser.Scene {
     const cue = this.balls.get("cue");
     if (!cue) return;
     const r = BALL.radius;
-    const px = Phaser.Math.Clamp(x, TABLE.left + r + 1, TABLE.right - r - 1);
+    const maxX = this.kitchenOnly ? CUE_START.x : TABLE.right - r - 1;
+    const px = Phaser.Math.Clamp(x, TABLE.left + r + 1, maxX);
     const py = Phaser.Math.Clamp(y, TABLE.top + r + 1, TABLE.bottom - r - 1);
     this.matter.body.setPosition(cue.body, { x: px, y: py });
     this.matter.body.setVelocity(cue.body, { x: 0, y: 0 });
     cue.view.setPosition(px, py);
-    cue.shadow.setPosition(px + r * 0.22, py + r * 0.3);
+    cue.shadow.setPosition(px + r * 0.28, py + r * 0.36);
+    cue.last = { x: px, y: py };
     const minGap = r * 2 + 1;
     this.placementValid = this.activeTargets().every((t) => Math.hypot(t.x - px, t.y - py) >= minGap)
       && this.pocketPositions().every((p) => Math.hypot(p.x - px, p.y - py) >= TABLE.pocketRadius + r);
@@ -554,19 +793,26 @@ export class GameScene extends Phaser.Scene {
     cue.view.setAlpha(1);
     cue.shadow.setAlpha(1);
     this.placeGfx.clear();
+    this.placeDrag = false;
     this.phase = PHASE.AIM;
-    this.updateHud("");
+    this.canReplace = true;
+    this.resetAim();
+    this.updateHud(this.isAiTurn() ? "" : "Cue ball placed. Drag it to move it again, or take the shot.");
   }
 
   drawPlacement() {
-    this.placeGfx.clear();
+    const g = this.placeGfx.clear();
     if (this.phase !== PHASE.PLACING) return;
     const cue = this.balls.get("cue");
     if (!cue) return;
+    if (this.kitchenOnly) {
+      g.fillStyle(0xffffff, 0.06);
+      g.fillRect(TABLE.left, TABLE.top, CUE_START.x - TABLE.left, TABLE.bottom - TABLE.top);
+    }
     const { x, y } = cue.body.position;
     const pulse = 0.5 + 0.5 * Math.sin(this.time.now / 180);
-    this.placeGfx.lineStyle(2, this.placementValid ? 0x4ade80 : 0xf87171, 0.6 + pulse * 0.4);
-    this.placeGfx.strokeCircle(x, y, BALL.radius + 5 + pulse * 2);
+    g.lineStyle(2, this.placementValid ? 0x6fdc9a : 0xf0655c, 0.6 + pulse * 0.4);
+    g.strokeCircle(x, y, BALL.radius + 5 + pulse * 2);
   }
 
   // ---- physics / rules -----------------------------------------------------
@@ -587,6 +833,27 @@ export class GameScene extends Phaser.Scene {
         y: entry.body.velocity.y + Math.sin(angle) * kick,
       });
     });
+  }
+
+  // Spin is applied the frame after the contact that triggers it, once the
+  // physics engine has resolved the collision itself. Follow and draw push
+  // the cue ball along or against the shot line after it meets the object
+  // ball; side spin slides it along a cushion on the rebound.
+  applySpin() {
+    const cue = this.balls.get("cue");
+    if (!cue || !cue.active) { this.pendingFollow = null; this.pendingSide = null; return; }
+    if (this.pendingFollow) {
+      const { dir, speed, amount } = this.pendingFollow;
+      this.pendingFollow = null;
+      const k = amount * SPIN.followDraw * speed;
+      this.matter.body.setVelocity(cue.body, { x: cue.body.velocity.x + dir.x * k, y: cue.body.velocity.y + dir.y * k });
+    }
+    if (this.pendingSide) {
+      const { n, speed, amount } = this.pendingSide;
+      this.pendingSide = null;
+      const k = amount * SPIN.side * speed;
+      this.matter.body.setVelocity(cue.body, { x: cue.body.velocity.x + n.y * k, y: cue.body.velocity.y - n.x * k });
+    }
   }
 
   // Constant per-frame speed loss on top of Matter's exponential air drag,
@@ -631,13 +898,31 @@ export class GameScene extends Phaser.Scene {
     return x < TABLE.left - m || x > TABLE.right + m || y < TABLE.top - m || y > TABLE.bottom + m;
   }
 
+  nearestPocket(x, y) {
+    let best = null;
+    this.pocketPositions().forEach((p, index) => {
+      const d = Math.hypot(p.x - x, p.y - y);
+      if (!best || d < best.d) best = { d, index, x: p.x, y: p.y };
+    });
+    return best;
+  }
+
   pocketBall(entry) {
     if (!entry.active) return;
     if (this.phase !== PHASE.SHOOTING) this.beginShot();
     entry.active = false;
+    const { x, y } = entry.body.position;
+    const pocket = this.nearestPocket(x, y);
     this.matter.world.remove(entry.body);
-    entry.view.destroy();
+    // The ball drops: it slides to the middle of the pocket, shrinks and
+    // fades out of sight.
     entry.shadow.destroy();
+    this.tweens.add({
+      targets: entry.view,
+      x: pocket.x, y: pocket.y, scale: entry.view.scale * 0.62, alpha: 0,
+      duration: 190, ease: "Quad.easeIn",
+      onComplete: () => entry.ball.destroy(),
+    });
     this.pocketedThisTurn.push(entry.id);
     if (entry.id !== "cue") this.pocketedOrder.push(entry.id);
     audio.pocket();
@@ -665,8 +950,13 @@ export class GameScene extends Phaser.Scene {
         if (this.firstContact == null && this.phase === PHASE.SHOOTING && (idA === "cue" || idB === "cue")) {
           const other = idA === "cue" ? idB : idA;
           if (other !== "cue") {
+            const cueBody = idA === "cue" ? a : b;
             this.firstContact = Number(other);
-            if (this.isBreak) this.scatterRack(idA === "cue" ? a : b);
+            if (this.shotSpin.y && cueBody.speed > 0.2) {
+              this.pendingFollow = { dir: { x: cueBody.velocity.x / cueBody.speed, y: cueBody.velocity.y / cueBody.speed }, speed: cueBody.speed, amount: this.shotSpin.y };
+              this.shotSpin.y = 0;
+            }
+            if (this.isBreak) this.scatterRack(cueBody);
           }
         }
         const rvx = a.velocity.x - b.velocity.x;
@@ -681,6 +971,14 @@ export class GameScene extends Phaser.Scene {
       if (wall.label === "cushion" || wall.label === "frame") {
         const ball = aBall ? a : b;
         audio.thud(ball.speed / PHYSICS.maxShotSpeed);
+        if (wall.label === "cushion" && ball.label === "ball:cue" && Math.abs(this.shotSpin.x) > 0.02 && this.phase === PHASE.SHOOTING) {
+          // Cushions are axis-aligned strips: the normal points from the
+          // strip to the ball across its thin side.
+          const wide = wall.bounds.max.x - wall.bounds.min.x > wall.bounds.max.y - wall.bounds.min.y;
+          const n = wide ? { x: 0, y: Math.sign(ball.position.y - wall.position.y) } : { x: Math.sign(ball.position.x - wall.position.x), y: 0 };
+          this.pendingSide = { n, speed: ball.speed, amount: this.shotSpin.x };
+          this.shotSpin.x *= SPIN.sideKeep;
+        }
       }
     });
   }
@@ -688,58 +986,100 @@ export class GameScene extends Phaser.Scene {
   finishShot() {
     if (this.phase !== PHASE.SHOOTING) return;
     this.phase = PHASE.AIM;
+    this.shotSpin = { x: 0, y: 0 };
+    this.registry.set("spin", { x: 0, y: 0 });
+    const shooter = this.match.turn;
     const pocketed = this.pocketedThisTurn.splice(0);
     const result = resolveShot(this.match, { pocketed, firstContact: this.firstContact, isBreak: this.currentShotIsBreak });
     this.match = result.match;
-    hub.score(14 - this.match.remaining.solid.length - this.match.remaining.stripe.length);
+    hub.score(pottedCount(this.match));
     this.firstContact = null;
+
+    const st = this.stats[shooter];
+    const potted = pocketed.filter((id) => id !== "cue").length;
+    st.pots += potted;
+    if (result.foulReason) st.fouls += 1;
+    st.run = result.continueTurn ? st.run + potted : 0;
+    st.bestRun = Math.max(st.bestRun, result.continueTurn ? st.run : potted);
 
     if (result.winner) {
       this.endGame(result.winner, result.message);
       return;
     }
-    if (result.respotEight) this.respotEight();
+    (result.respot || []).forEach((id) => this.respotBall(id));
+    if (result.foulReason) this.announceFoul(result);
     if (result.ballInHand) {
+      // 8-ball and blackball bring a pocketed cue ball back behind the head
+      // string; 9-ball gives it anywhere.
+      this.kitchenOnly = result.placement === "kitchen";
       this.beginPlacement();
-      this.updateHud(this.isAiTurn() ? result.message : `${result.message} Tap or drag to place the cue ball.`);
+      const where = this.kitchenOnly ? " behind the line" : "";
+      this.updateHud(this.isAiTurn() ? result.message : `${result.message} Tap or drag to place the cue ball${where}.`);
       return;
     }
+    this.resetAim();
     this.updateHud(result.message);
+  }
+
+  // A foul is announced in the middle of the table: what went wrong and what
+  // the other player gets for it.
+  announceFoul(result) {
+    const other = this.match.turn;
+    const reason = result.foulReason[0].toUpperCase() + result.foulReason.slice(1);
+    let award = `Player ${other} has two shots`;
+    if (this.variant === "nineball") award = `Player ${other} has ball in hand`;
+    const detail = result.placement === "kitchen" ? "Cue ball behind the line" : result.placement === "anywhere" ? "Place the cue ball anywhere" : "Cue ball stays where it lies";
+    audio.foul();
+    this.game.events.emit("match-banner", {
+      title: "FOUL",
+      lines: [reason, this.withNames(award).toUpperCase()],
+      detail: this.isAiTurn() && result.placement !== "none" ? "" : detail,
+      shots: this.match.shots,
+      tone: "foul",
+    });
   }
 
   endGame(winner, message) {
     if (this.phase === PHASE.OVER) return;
     this.phase = PHASE.OVER;
-    this.isDragging = false;
+    this.cancelDrag();
     this.aimGfx.clear();
     this.placeGfx.clear();
+    this.cueFade = null;
+    this.showCue(null);
     this.updateHud(message);
     const durationMs = Math.round(performance.now() - this.hubStartedAt);
-    const score = 14 - this.match.remaining.solid.length - this.match.remaining.stripe.length;
+    const score = pottedCount(this.match);
     hub.gameOver(score, durationMs);
     hub.event("match-won", { winner, mode: this.mode, seconds: Math.round(durationMs / 1000) });
+    // Campaign matches go on the ladder; quick matches on the difficulty record.
+    let record = null;
+    let campaign = null;
+    if (this.opponent) campaign = recordCampaignResult(this.opponent.id, { won: winner === 1, fouls: this.stats[1].fouls, shots: this.stats[1].shots });
+    else if (this.mode === "ai") record = recordResult(this.difficulty, winner === 1);
+    if (winner === 1 || this.mode !== "ai") audio.win(); else audio.lose();
     this.time.delayedCall(900, () => {
       this.scene.stop("UI");
-      this.scene.start("GameOver", { winner, message: this.withNames(message), ...this.restartData(), names: this.names });
+      this.scene.start("GameOver", { winner, message: this.withNames(message), ...this.restartData(), names: this.names, stats: this.stats, durationMs, record, campaign });
     });
   }
 
-  // Put the 8-ball back on the foot spot (or the nearest free point along
-  // the long axis) after it dropped on the break.
-  respotEight() {
-    const existing = this.balls.get("8");
+  // Put a ball back on the foot spot (or the nearest free point along the
+  // long axis): the 8 after it dropped on the break, the 9 after a foul.
+  respotBall(id) {
+    const key = String(id);
+    const existing = this.balls.get(key);
     if (existing && existing.active) return;
-    if (existing) this.balls.delete("8");
-    this.pocketedOrder = this.pocketedOrder.filter((id) => id !== 8);
+    if (existing) this.balls.delete(key);
+    this.pocketedOrder = this.pocketedOrder.filter((n) => n !== id);
     const r = BALL.radius;
-    const footX = TABLE.left + (TABLE.right - TABLE.left) * 0.62;
-    const free = (x, y) => this.activeTargets("8").every((t) => Math.hypot(t.x - x, t.y - y) >= r * 2 + 1);
-    let x = footX;
+    const free = (x, y) => this.activeTargets(key).every((t) => Math.hypot(t.x - x, t.y - y) >= r * 2 + 1);
+    let x = FOOT_X;
     for (let d = 0; d < 320; d += r) {
-      if (free(footX + d, TABLE.midY)) { x = footX + d; break; }
-      if (free(footX - d, TABLE.midY)) { x = footX - d; break; }
+      if (free(FOOT_X + d, TABLE.midY)) { x = FOOT_X + d; break; }
+      if (free(FOOT_X - d, TABLE.midY)) { x = FOOT_X - d; break; }
     }
-    this.addBall(8, x, TABLE.midY);
+    this.addBall(id, x, TABLE.midY);
   }
 
   updateHud(message) {
@@ -748,9 +1088,13 @@ export class GameScene extends Phaser.Scene {
       assigned: { ...this.match.assigned },
       remaining: { solid: [...this.match.remaining.solid], stripe: [...this.match.remaining.stripe] },
       pocketed: [...this.pocketedOrder],
+      variant: this.variant,
+      shots: this.match.shots ?? 1,
+      balls: this.match.balls ? [...this.match.balls] : null,
       phase: this.phase,
       mode: this.mode,
-      difficultyLabel: this.mode === "ai" ? AI_DIFFICULTY[this.difficulty].label : null,
+      aiTurn: this.isAiTurn(),
+      difficultyLabel: this.mode === "ai" && !this.opponent ? AI_DIFFICULTY[this.difficulty].label : null,
       names: { ...this.names },
       // The turn and group are on the HUD cards; an empty message shows the
       // controls hint instead of repeating them.

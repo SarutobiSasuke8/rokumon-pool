@@ -1,5 +1,5 @@
 import { projectCuePath } from "./aim.js";
-import { legalFirstTarget } from "./rules.js";
+import { legalFirstTarget, lowestBall } from "./rules.js";
 import { ballKind } from "./state.js";
 
 // Pure computer opponent. Everything is geometry over plain objects so it
@@ -30,6 +30,10 @@ function gaussian(random) {
 }
 
 export function legalTargetIds(match, player, balls) {
+  if (match.variant === "nineball") {
+    const lowest = lowestBall(match);
+    return balls.filter((b) => b.id !== "cue" && Number(b.id) === lowest).map((b) => b.id);
+  }
   const target = legalFirstTarget(match, player);
   return balls
     .filter((b) => b.id !== "cue")

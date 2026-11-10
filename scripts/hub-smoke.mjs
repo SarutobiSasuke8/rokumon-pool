@@ -13,7 +13,7 @@ const server = createServer(async (request, response) => {
   if (!file.startsWith(root + "/") && !file.startsWith(root + "\\")) return response.writeHead(403).end();
   try {
     const bytes = await readFile(file);
-    response.setHeader("content-type", ({ ".js": "text/javascript", ".css": "text/css", ".html": "text/html" })[extname(file)] ?? "application/octet-stream");
+    response.setHeader("content-type", ({ ".js": "text/javascript", ".css": "text/css", ".html": "text/html", ".webp": "image/webp", ".png": "image/png", ".woff2": "font/woff2", ".woff": "font/woff" })[extname(file)] ?? "application/octet-stream");
     response.end(bytes);
   } catch { response.writeHead(404).end(); }
 });
@@ -38,10 +38,12 @@ try {
     });
     await page.goto(origin + mount);
     await page.locator("canvas").waitFor();
+    // The title screen appears once the fonts and the table art have loaded.
+    await page.waitForFunction(() => document.body.dataset.screen === "menu");
     await page.keyboard.press("Space");
     await page.waitForFunction(() => Boolean(window.__GAME_DEBUG__?.getScene));
     await page.keyboard.press("ArrowUp");
-    await page.screenshot({ path: `tests/evidence/2026-10-14-hub-${sdk ? "sdk" : "standalone"}.png` });
+    await page.screenshot({ path: `tests/evidence/2026-11-10-hub-${sdk ? "sdk" : "standalone"}.png` });
     await page.evaluate(() => window.__GAME_DEBUG__.getScene().endGame(1, "Automation lifecycle probe"));
     if (sdk) {
       const calls = await page.evaluate(() => window.hubCalls);
