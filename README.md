@@ -10,9 +10,9 @@ There is no betting, wagering, currency or real-money mechanic in this game. It 
 
 ## Status
 
-Version 0.10.0. The game is feature complete for 1.0: four games, a campaign with ten opponents and trophies, separate aim and power controls, cue-ball spin, a table rendered in Blender, rolling balls, recorded sound effects, and full menus and results screens. What stands between this and 1.0 is listed in `ROADMAP.md` under Milestone 7: a playtest on a real phone, feel tuning after it, a music track, the final name and a deploy.
+Version 0.10.2. The game is feature complete for 1.0: four games, a campaign with ten opponents and trophies, separate aim and power controls, cue-ball spin, a table rendered in Blender, rolling balls, recorded sound effects, and full menus and results screens. What stands between this and 1.0 is listed in `ROADMAP.md` under Milestone 7: a playtest on a real phone, feel tuning after it, a listening pass on the sound effects and the final name.
 
-Automated checks cover real mouse and touch input in a phone-sized browser. Nobody has yet played it on a physical phone, and nobody has yet listened to the generated sound effects in play.
+Automated checks cover real mouse and touch input in a phone-sized browser. Nobody has yet played it on a physical phone. The generated sound effects and the music have been verified to load and play in a browser, but not yet listened to by a person.
 
 ## Run it
 

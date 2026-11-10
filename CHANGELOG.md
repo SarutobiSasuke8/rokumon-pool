@@ -4,7 +4,7 @@ All notable changes to this project should be documented here.
 
 ## Unreleased
 
-### 2026-11-10 music, charge-up sound and key art (0.10.1)
+### 2026-11-10 music, charge-up sound and an audio fix (0.10.2)
 
 Fixed
 
@@ -14,6 +14,8 @@ Added
 
 - Music: a main track, "Smoky Lounge" (Suno, Pro plan), a laid-back minor-key jazz-lounge instrumental with a koto motif, 3:32, trimmed and faded at both ends so it loops cleanly. It plays at a low volume from the first tap, pauses with the game, and has its own toggle on the title screen and in the pause menu.
 - Charge-up sound: a live tone that rises in pitch and loudness as the power handle is pulled down, with a soft tick at each quarter of the bar. It is synthesised so it can follow the handle, stops the moment you let go or cancel, and is silenced by the Sound toggle.
+
+### 2026-11-10 key art (0.10.1)
 
 Changed
 
