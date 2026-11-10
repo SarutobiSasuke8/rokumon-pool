@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { syncCampaign } from "../systems/campaign.js";
 
 // Rendered art is optional: whatever exists in src/art is bundled and
 // loaded, and the scenes fall back to drawing in code for anything missing.
@@ -13,5 +14,13 @@ export class BootScene extends Phaser.Scene {
       else this.load.image(key, url);
     });
   }
-  create() { this.scene.start("Menu"); }
+  create() {
+    const room = new URLSearchParams(window.location.search).get("room");
+    if (room && /^[a-f0-9-]{36}$/i.test(room) && window.parent !== window && window.location.pathname.startsWith("/games/pool/")) {
+      this.scene.start("Online", { room });
+      return;
+    }
+    void Promise.race([syncCampaign(), new Promise((resolve) => setTimeout(resolve, 650))])
+      .then(() => this.scene.start("Menu"));
+  }
 }

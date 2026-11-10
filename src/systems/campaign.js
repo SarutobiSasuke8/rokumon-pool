@@ -9,6 +9,11 @@
 //   thinkMs    how long they study the table before shooting
 
 const KEY = "rokumon-pool:campaign";
+const LEGACY_OWNER = KEY + ":legacy-owner";
+let scope = null;
+let cloud = null;
+let syncing = null;
+let syncAgain = false;
 
 export const CHARACTERS = Object.freeze([
   { id: "anayama", name: "Anayama Kosuke", epithet: "The Understudy", variant: "eightball", color: 0x6b8e5a, trophy: "Bamboo Cup",
@@ -68,6 +73,10 @@ export function unlockedCount(progress) {
   return Math.min(CHARACTERS.length, n + 1);
 }
 
+export function revealedCount(progress) {
+  return Math.min(CHARACTERS.length, unlockedCount(progress) + 1);
+}
+
 export function trophyCount(progress) {
   return CHARACTERS.filter((c) => progress.beaten[c.id]).length;
 }
@@ -104,20 +113,110 @@ export function applyResult(progress, id, { won, fouls = 0, shots = 0 } = {}) {
   };
 }
 
-export function loadCampaign() {
+function normaliseCampaign(raw) {
+  const out = blank();
+  CHARACTERS.forEach((c) => {
+    const row = raw?.beaten?.[c.id];
+    if (row && typeof row === "object") out.beaten[c.id] = {
+      wins: Math.max(1, Math.min(100000, row.wins | 0)),
+      gold: row.gold === true,
+      bestShots: Math.max(0, Math.min(100000, row.bestShots | 0)),
+    };
+  });
+  return out;
+}
+
+export function mergeCampaign(left, right) {
+  const merged = normaliseCampaign(left);
+  for (const [id, next] of Object.entries(normaliseCampaign(right).beaten)) {
+    const before = merged.beaten[id];
+    const best = Math.min(before?.bestShots || Infinity, next.bestShots || Infinity);
+    merged.beaten[id] = before ? {
+      wins: Math.max(before.wins, next.wins),
+      gold: before.gold || next.gold,
+      bestShots: Number.isFinite(best) ? best : 0,
+    } : next;
+  }
+  return merged;
+}
+
+function readCampaign(key) {
   try {
-    const raw = JSON.parse(localStorage.getItem(KEY) || "{}");
-    const out = blank();
-    CHARACTERS.forEach((c) => {
-      const row = raw?.beaten?.[c.id];
-      if (row && typeof row === "object") out.beaten[c.id] = { wins: Math.max(1, row.wins | 0), gold: Boolean(row.gold), bestShots: Math.max(0, row.bestShots | 0) };
-    });
-    return out;
+    return normaliseCampaign(JSON.parse(localStorage.getItem(key) || "{}"));
   } catch { return blank(); }
+}
+
+function writeCampaign(key, progress) {
+  try { localStorage.setItem(key, JSON.stringify(progress)); } catch { /* Optional device cache. */ }
+}
+
+export function loadCampaign() {
+  return scope ? mergeCampaign(readCampaign(KEY + ":" + scope), cloud) : readCampaign(KEY);
+}
+
+function campaignEndpoint() {
+  try {
+    if (window.parent !== window && window.parent.location.origin === window.location.origin
+      && window.location.pathname.startsWith("/games/pool/")) return "/api/pool/campaign";
+  } catch { /* Standalone and cross-origin embeds keep local progress. */ }
+  return null;
+}
+
+async function sync(endpoint) {
+  const old = JSON.stringify(loadCampaign());
+  const request = await fetch(endpoint, { cache: "no-store", signal: AbortSignal.timeout(1800) });
+  const notify = () => window.dispatchEvent(new Event("pool-campaign-updated"));
+  if (request.status === 401) {
+    scope = null;
+    cloud = null;
+    if (old !== JSON.stringify(loadCampaign())) notify();
+    return;
+  }
+  if (!request.ok) return;
+  const account = await request.json();
+  if (!/^[a-f0-9]{64}$/.test(account.scope)) return;
+  const key = KEY + ":" + account.scope;
+  let legacyOwner;
+  try { legacyOwner = localStorage.getItem(LEGACY_OWNER); } catch { /* Storage unavailable. */ }
+  const incoming = mergeCampaign(readCampaign(key), legacyOwner ? null : readCampaign(KEY));
+  cloud = mergeCampaign(scope === account.scope ? cloud : null, account.progress);
+  scope = account.scope;
+  const merged = mergeCampaign(incoming, cloud);
+  writeCampaign(key, merged);
+  if (!legacyOwner) {
+    try { localStorage.setItem(LEGACY_OWNER, scope); } catch { /* Optional device marker. */ }
+  }
+  if (old !== JSON.stringify(merged)) notify();
+  if (JSON.stringify(merged) !== JSON.stringify(normaliseCampaign(account.progress))) {
+    const saved = await fetch(endpoint, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scope, progress: merged }), signal: AbortSignal.timeout(1800),
+    });
+    if (!saved.ok) return;
+    const result = await saved.json();
+    if (result.scope !== scope) return;
+    const latest = mergeCampaign(loadCampaign(), result.progress);
+    cloud = latest;
+    writeCampaign(key, latest);
+    if (JSON.stringify(latest) !== JSON.stringify(merged)) notify();
+  }
+}
+
+export function syncCampaign() {
+  const endpoint = campaignEndpoint();
+  if (!endpoint) return Promise.resolve();
+  if (syncing) { syncAgain = true; return syncing; }
+  syncing = sync(endpoint).catch(() => {}).finally(() => {
+    syncing = null;
+    if (syncAgain) { syncAgain = false; void syncCampaign(); }
+  });
+  return syncing;
 }
 
 export function recordCampaignResult(id, result) {
   const outcome = applyResult(loadCampaign(), id, result);
-  try { localStorage.setItem(KEY, JSON.stringify(outcome.progress)); } catch { /* per-viewer convenience only */ }
+  if (scope) cloud = outcome.progress;
+  writeCampaign(scope ? KEY + ":" + scope : KEY, outcome.progress);
+  if (outcome.won) void syncCampaign();
   return outcome;
 }

@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { CHARACTERS, applyResult, characterById, goldCount, opponentData, trophyCount, unlockedCount } from "../src/systems/campaign.js";
+import { CHARACTERS, applyResult, characterById, goldCount, mergeCampaign, opponentData, trophyCount, unlockedCount } from "../src/systems/campaign.js";
+
+it("merges awards from separate devices without downgrading gold or duplicating a replayed sync", () => {
+  const desktop = { beaten: { anayama: { wins: 3, gold: true, bestShots: 17 } } };
+  const phone = { beaten: { anayama: { wins: 2, gold: false, bestShots: 12 }, isa: { wins: 1, gold: false, bestShots: 20 } } };
+  const merged = mergeCampaign(desktop, phone);
+  expect(merged.beaten).toEqual({
+    anayama: { wins: 3, gold: true, bestShots: 12 }, isa: { wins: 1, gold: false, bestShots: 20 },
+  });
+  expect(mergeCampaign(merged, desktop)).toEqual(merged);
+});
 import { VARIANTS } from "../src/game/state.js";
 import { NINE_RACK, RACK_ORDER, SIX_COINS_RACK, rackFor } from "../src/game/constants.js";
 

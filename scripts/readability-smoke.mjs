@@ -251,7 +251,7 @@ try {
       const art = (scene, key) => page.evaluate(({ scene, key }) =>
         window.__GAME_DEBUG__.getScene().scene.get(scene).children.list
           .filter((o) => o.texture?.key === key).map((o) => o.frame.name), { scene, key });
-      assert.equal(new Set(await art("Campaign", "braves")).size, 10);
+      assert.deepEqual((await art("Campaign", "braves")).map(String), ["0", "1"]);
       await page.screenshot({ path: "tests/evidence/pool-campaign.png" });
       await click(826, 476); // Challenge Anayama.
       await page.waitForFunction(() => window.__GAME_DEBUG__.getScene().opponent?.id === "anayama"
@@ -265,6 +265,7 @@ try {
       await click(642, 462); // Ladder.
       await page.waitForFunction(() => document.body.dataset.screen === "campaign");
       assert.equal((await art("Campaign", "trophy-gold")).length, 1);
+      assert.deepEqual((await art("Campaign", "braves")).map(String), ["0", "1", "2"]);
     }
     assert.deepEqual(errors, [], `${name}: no page errors`);
     console.log(`ok - ${name}: 16 ball textures, groups ${assigned[1]}/${assigned[2]}, tray ${state.tray.length}, ${options.hasTouch ? "touch" : "mouse"} power pull shoots`);

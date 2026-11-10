@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { VARIANT_INFO } from "../game/state.js";
 import { audio } from "../systems/audio.js";
-import { CHARACTERS, goldCount, loadCampaign, opponentData, trophyCount, unlockedCount } from "../systems/campaign.js";
+import { CHARACTERS, goldCount, loadCampaign, opponentData, revealedCount, syncCampaign, trophyCount, unlockedCount } from "../systems/campaign.js";
 import { FONT, UI, VIEW, addButton, addText, addTitle, drawRokumon, setupCamera } from "../ui/theme.js";
 import { addPortrait, addTrophy } from "../ui/collectibles.js";
 
@@ -20,7 +20,7 @@ function drawLock(g, x, y, size, color) {
 export class CampaignScene extends Phaser.Scene {
   constructor() { super("Campaign"); }
 
-  create() {
+  create(data) {
     setupCamera(this);
     document.body.dataset.screen = "campaign";
     if (this.textures.exists("table")) this.add.image(VIEW.w / 2, VIEW.h / 2, "table").setDisplaySize(VIEW.w, VIEW.h);
@@ -28,6 +28,7 @@ export class CampaignScene extends Phaser.Scene {
 
     this.progress = loadCampaign();
     this.open = unlockedCount(this.progress);
+    this.revealed = revealedCount(this.progress);
     const won = trophyCount(this.progress);
     const gold = goldCount(this.progress);
 
@@ -49,7 +50,15 @@ export class CampaignScene extends Phaser.Scene {
     this.playButton = addButton(this, 826, 476, 170, 48, "PLAY", () => this.play(), { primary: true, fontSize: 22 });
     addButton(this, 676, 476, 110, 40, "BACK", () => this.scene.start("Menu"), { fontSize: 17 });
 
-    this.select(Math.min(this.open - 1, CHARACTERS.length - 1));
+    this.select(data?.selected ?? this.open - 1);
+    const refresh = () => this.scene.restart({ selected: this.selected });
+    const focus = () => void syncCampaign();
+    window.addEventListener("pool-campaign-updated", refresh);
+    window.addEventListener("focus", focus);
+    this.events.once("shutdown", () => {
+      window.removeEventListener("pool-campaign-updated", refresh);
+      window.removeEventListener("focus", focus);
+    });
     const keys = this.input.keyboard;
     keys.on("keydown-ESC", () => this.scene.start("Menu"));
     keys.on("keydown-LEFT", () => this.select(Math.max(0, this.selected - 1)));
@@ -69,14 +78,16 @@ export class CampaignScene extends Phaser.Scene {
     const cx = x + CARD.w / 2;
     const locked = i >= this.open;
     const beaten = this.progress.beaten[c.id];
-    const portrait = addPortrait(this, c.id, cx, y + 55, 86);
+    const revealed = i < this.revealed;
+    const portrait = revealed ? addPortrait(this, c.id, cx, y + 55, 86) : null;
     portrait?.setAlpha(locked ? 0.57 : 1);
     if (beaten) addTrophy(this, x + CARD.w - 24, y + 27, 42, beaten.gold);
     const small = { fontFamily: FONT.display, fontStyle: "600", fontSize: "11px", color: UI.css.dim };
     addTitle(this, x + 21, y + 26, String(c.rank).padStart(2, "0"), { fontSize: "16px", color: locked ? UI.css.dim : UI.css.brass }).setOrigin(0.5);
-    addText(this, cx, y + 108, c.name.toUpperCase(), { fontFamily: FONT.display, fontStyle: "700", fontSize: "15px", color: locked ? UI.css.dim : UI.css.cream }).setOrigin(0.5);
+    if (!revealed) addTitle(this, cx, y + 55, "?", { fontSize: "39px", color: UI.css.dim }).setOrigin(0.5);
+    addText(this, cx, y + 108, revealed ? c.name.toUpperCase() : "UNKNOWN BRAVE", { fontFamily: FONT.display, fontStyle: "700", fontSize: "15px", color: locked ? UI.css.dim : UI.css.cream }).setOrigin(0.5);
     addText(this, cx, y + 125, locked ? "Locked" : c.epithet, { fontSize: "11px", color: UI.css.dim }).setOrigin(0.5);
-    addText(this, cx, y + 148, VARIANT_INFO[c.variant].short, small).setOrigin(0.5);
+    addText(this, cx, y + 148, revealed ? VARIANT_INFO[c.variant].short : "HIDDEN", small).setOrigin(0.5);
     this.add.zone(cx, y + CARD.h / 2, CARD.w, CARD.h).setInteractive({ useHandCursor: true })
       .on("pointerdown", () => { audio.unlock(); audio.ui(); this.select(i); });
     return { c, i };
@@ -97,7 +108,7 @@ export class CampaignScene extends Phaser.Scene {
       g.lineStyle(on ? 2 : 1, on ? UI.brass : UI.line, 1);
       g.strokeRoundedRect(x, y, CARD.w, CARD.h, 12);
 
-      g.fillStyle(c.color, 0.42);
+      g.fillStyle(index < this.revealed ? c.color : UI.line, 0.42);
       g.fillRoundedRect(cx - 46, y + 9, 92, 92, 5);
       g.lineStyle(1, on ? UI.brass : UI.line, 1);
       g.strokeRoundedRect(cx - 46, y + 9, 92, 92, 5);
@@ -117,9 +128,9 @@ export class CampaignScene extends Phaser.Scene {
     d.lineStyle(1.5, UI.brassDark, 1);
     d.strokeRoundedRect(40, 430, 880, 96, 12);
     if (locked) {
-      this.detailName.setText(`${c.rank}. ${c.name.toUpperCase()}`).setColor(UI.css.dim);
+      this.detailName.setText(i < this.revealed ? `${c.rank}. ${c.name.toUpperCase()}` : `${c.rank}. UNKNOWN BRAVE`).setColor(UI.css.dim);
       this.detailMeta.setText("LOCKED");
-      this.detailBlurb.setText(`Beat ${CHARACTERS[this.open - 1].name} to meet this opponent.`);
+      this.detailBlurb.setText(i < this.revealed ? `Beat ${CHARACTERS[this.open - 1].name} to play this opponent.` : "Get within one spot to reveal this opponent.");
     } else {
       this.detailName.setText(`${c.rank}. ${c.name.toUpperCase()}`).setColor(UI.css.cream);
       const trophy = beaten ? `${beaten.gold ? "GOLD" : "BRONZE"} ${c.trophy.toUpperCase()} WON` : `TROPHY: ${c.trophy.toUpperCase()}`;
