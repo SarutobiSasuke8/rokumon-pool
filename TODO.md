@@ -39,7 +39,7 @@ Use this file for actionable game project work. Keep items concrete.
 - [x] #task AI difficulty levels (Easy/Normal/Hard) exposed on the menu (2026-10-08, #4; tuning in `AI_DIFFICULTY`).
 - [ ] #task Human playtest of the three difficulty levels on desktop and touch; retune `AI_DIFFICULTY` if Easy still wins too often or Hard feels unbeatable.
 - [ ] #task Deploy: make the repo public and run the Pages workflow, or `wrangler login` and deploy `dist/` to Cloudflare Pages. Then a phone playtest.
-- [ ] #task Copy the hub media from `art/banners/` into the Rokumon Games repo and update its manifest (media, version 0.8.0, description: the controls changed).
+- [ ] #task Review and push the hub branch `ship/pool-0.9.0` (worktree `C:/Dev/Projects/_wt/hub-ship-pool`); merging it deploys to rokumongames.com.
 - [ ] #task Tune `SPIN` in `src/game/constants.js` by hand after the phone playtest.
 - [ ] #task Add the Suno track as `src/audio/music-main.mp3` and rebuild.
 - [ ] #task Listen to every effect in `src/audio/` in play; regenerate any that are wrong with `scripts/make-sfx.ps1 -Force -Only <name>`.

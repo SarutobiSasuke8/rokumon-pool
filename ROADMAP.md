@@ -69,7 +69,8 @@ Direction decided 2026-11-10: stay top-down in Phaser, with art rendered in Blen
 - [ ] Feel tuning after the playtest (needs Alexei's judgement).
 - [ ] Final name confirmed (needs Alexei).
 - [ ] Deploy to a shareable URL (needs `wrangler login`; the repo stays private).
-- [ ] Sync the bundle and media into the Rokumon Games hub, and update its manifest (version, description, media).
+- [x] Bundle, media and manifest prepared for the Rokumon Games hub: local branch `ship/pool-0.9.0` in `C:/Dev/Projects/_wt/hub-ship-pool`, hub slug `pool`.
+- [ ] Push that hub branch and merge it (needs Alexei: merging deploys to rokumongames.com).
 
 ### After 1.0
 
