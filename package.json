@@ -1,12 +1,13 @@
 {
   "name": "rokumon-pool",
   "private": true,
-  "version": "0.11.0",
+  "version": "0.12.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
+    "online:serve": "node server/online-service.mjs",
     "test": "vitest run && node scripts/test-rules.mjs && node scripts/test-ai.mjs && node scripts/test-labels.mjs && node scripts/test-hub.mjs",
     "verify": "npm run build && npm test",
     "smoke": "node scripts/hub-smoke.mjs",

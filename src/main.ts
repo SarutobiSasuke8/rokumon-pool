@@ -3,6 +3,7 @@ import Phaser from "phaser";
 import "./fonts.css";
 import { BootScene } from "./scenes/BootScene.js"; import { MenuScene } from "./scenes/MenuScene.js"; import { GameScene } from "./scenes/GameScene.js"; import { UIScene } from "./scenes/UIScene.js"; import { GameOverScene } from "./scenes/GameOverScene.js"; import { HowToScene } from "./scenes/HowToScene.js"; import { CampaignScene } from "./scenes/CampaignScene.js";
 import { VIEW, RENDER_SCALE } from "./ui/theme.js";
+import { OnlineScene } from "./scenes/OnlineScene.js";
 
 // Phaser draws text to a canvas, so the typefaces must be ready before the
 // first scene lays anything out. A failed or slow font never blocks the game.
@@ -38,7 +39,7 @@ async function start() {
         velocityIterations: 6,
       },
     },
-    scene: [BootScene, MenuScene, HowToScene, CampaignScene, GameScene, UIScene, GameOverScene],
+    scene: [BootScene, MenuScene, HowToScene, CampaignScene, GameScene, UIScene, GameOverScene, OnlineScene],
   });
 
   // Drop the static loading line once Phaser has booted.

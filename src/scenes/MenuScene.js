@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import { AI_DIFFICULTY, DIFFICULTY_ORDER } from "../game/constants.js";
 import { VARIANTS, VARIANT_INFO, resolveVariant } from "../game/state.js";
 import { audio } from "../systems/audio.js";
-import { CHARACTERS, loadCampaign, trophyCount } from "../systems/campaign.js";
+import { CHARACTERS, loadCampaign, syncCampaign, trophyCount } from "../systems/campaign.js";
 import { loadDifficulty, saveDifficulty } from "../systems/difficulty.js";
 import { loadSettings, saveSettings } from "../systems/settings.js";
 import { loadRecord } from "../systems/stats.js";
@@ -39,7 +39,7 @@ export class MenuScene extends Phaser.Scene {
       const base = { mode, variant: this.variant };
       this.scene.start("Game", mode === "ai" ? { ...base, difficulty: this.difficulty } : base);
     };
-    const campaign = () => { audio.unlock(); this.scene.start("Campaign"); };
+    const campaign = () => { audio.unlock(); void syncCampaign(); this.scene.start("Campaign"); };
 
     addButton(this, COL, 200, 280, 44, "CAMPAIGN", campaign, { primary: true, fontSize: 22 });
     const won = trophyCount(loadCampaign());
