@@ -41,10 +41,33 @@ export const PHYSICS = Object.freeze({
 });
 
 export const INPUT = Object.freeze({
-  // A drag shorter than this is treated as a tap and never fires a shot.
-  minDrag: 14,
-  cueLength: 180,
+  // A press that moves less than this is a tap: the cue turns to point at it.
+  tapSlop: 6,
+  // Releasing the power bar below this cancels the shot.
+  minPower: 0.05,
+  // How far the cue visibly draws back at full power.
+  cuePull: 64,
+  cueLength: 330,
+  // Fine aim, radians: per frame for a held arrow key, per wheel notch unit.
+  keyTurn: 0.012,
+  keyTurnFine: 0.0025,
+  wheelTurn: 0.0007,
 });
+
+// Power bar in the left margin. The touch zone is wider than the drawn bar
+// and runs over the left rail, so a thumb does not have to be exact.
+export const POWER_BAR = Object.freeze({ x: 9, y: 104, w: 22, h: 332, zoneRight: 58 });
+
+// The rectangle where a press aims or places the cue ball: the table and its
+// rails, but not the HUD bands or the power bar.
+export const PLAY_ZONE = Object.freeze({ left: 58, right: 921, top: 40, bottom: 500 });
+
+// Cue-ball spin. Values are fractions of the cue ball's speed at contact.
+//   followDraw: speed added along (follow) or against (draw) the shot line
+//               after the first object-ball contact, at full spin
+//   side:       speed added along the cushion on a rebound, at full side spin
+//   sideKeep:   share of side spin left after each cushion
+export const SPIN = Object.freeze({ followDraw: 0.5, side: 0.28, sideKeep: 0.45 });
 
 // Computer opponent strength, chosen on the menu. One table so tuning lives
 // in one place.

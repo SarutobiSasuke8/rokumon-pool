@@ -4,6 +4,36 @@ All notable changes to this project should be documented here.
 
 ## Unreleased
 
+### 2026-11-10 completion overhaul (0.8.0)
+
+Changed
+
+- Controls: aim and power are separate. Drag on the table to turn the cue (a tap points it at the spot), pull the power bar to shoot. The old pull-back drag ran out of room when the cue ball sat near a cushion, because the pointer left the canvas before full power.
+- The aim guide is always visible on the player's turn and also shows where the cue ball heads after contact. It can be switched off in the pause menu.
+- The game renders at twice the logical 960x540 size, so text, lines and balls are sharp on phone screens.
+- Table: a top-down Blender render (wood rails, cloth, cushions, leather pocket surrounds, pearl sights, overhead lighting), built by `art/blender/build_scene.py` from the game's own table measurements. A code-drawn table remains as the fallback.
+- Balls are live shaded spheres that roll: the stripe tumbles and the number comes round, and a ball at rest turns its number back up. The cue ball carries red dots.
+- Cue: a tapered stick with bumper, butt, linen wrap, points, ferrule and chalked tip, with a shadow. It strikes forward on the shot and fades.
+- Menus, HUD and results use bundled typefaces (Barlow, Barlow Condensed) and one brass-on-charcoal look. The title screen shows the rendered key art.
+- Ball in hand: the cue ball can be dragged again after it is placed, until the shot is taken.
+
+Added
+
+- Cue-ball spin: follow, draw and side, set on a spin control. Tuning in `SPIN` in `src/game/constants.js`.
+- Pause menu with resume, restart, sound, aim guide and quit. How-to-play screen.
+- Results screen with shots, balls potted, best run and fouls for each player, match time, and a win/loss record per difficulty kept on the device.
+- A scratch on the break puts the cue ball behind the head string.
+- Fine aim with the arrow keys (Shift for finer) and the mouse wheel.
+- Pocketed balls drop into the pocket instead of vanishing.
+- Banner and store imagery in `art/banners/`, composed by `scripts/make-banners.mjs` from the Blender key art.
+- Tests: `tests/ball-roll.test.js`, `tests/stats.test.js`. The browser smokes now drive the power bar with real mouse and touch input.
+- The two mobile fixes from `codex/pool-mobile-playtest-20261104` (pause while the rotate prompt covers the table; an OS-cancelled touch drops the pull without shooting).
+
+Not done
+
+- No playtest on a physical phone. Spin strength and the feel constants are untuned by hand.
+- No call-pocket rule for the 8-ball (an open decision).
+
 ### 2026-10-23 ball readability (0.3.0, #11)
 
 Changed
