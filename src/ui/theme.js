@@ -97,3 +97,11 @@ export function drawRokumon(g, cx, cy, coin, color = UI.brass, alpha = 1) {
     }
   }
 }
+
+// The title-screen crest and lettering, arranged as a small horizontal mark.
+export function addPoolLogo(scene, x, y, scale = 1) {
+  const crest = scene.add.graphics();
+  drawRokumon(crest, -42, 0, 3.1);
+  const label = addTitle(scene, -27, 0, "ROKUMON POOL", { fontSize: "16px", color: UI.css.brass }).setOrigin(0, 0.5);
+  return scene.add.container(x, y, [crest, label]).setScale(scale);
+}

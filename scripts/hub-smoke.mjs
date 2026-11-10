@@ -42,6 +42,9 @@ try {
     await page.waitForFunction(() => document.body.dataset.screen === "menu");
     await page.keyboard.press("Space");
     await page.waitForFunction(() => Boolean(window.__GAME_DEBUG__?.getScene));
+    await page.waitForFunction(() => window.__GAME_DEBUG__.getScene().scene.isPaused("Game"));
+    await page.keyboard.press("Space");
+    await page.waitForFunction(() => window.__GAME_DEBUG__.getScene().scene.isActive("Game"));
     await page.keyboard.press("ArrowUp");
     await page.screenshot({ path: `tests/evidence/2026-11-10-hub-${sdk ? "sdk" : "standalone"}.png` });
     await page.evaluate(() => window.__GAME_DEBUG__.getScene().endGame(1, "Automation lifecycle probe"));

@@ -4,6 +4,11 @@ All notable changes to this project should be documented here.
 
 ## Unreleased
 
+### 2026-11-10 campaign portraits and rules (0.11.0)
+
+- Added the Ten Braves portraits to the ladder and match HUD. Quick computer matches now pick a random Brave and use the selected difficulty.
+- Added bronze and gold trophy artwork, the Pool crest and wordmark, and a rules guide for all four variants. The guide can be opened before the break or from pause.
+
 ### 2026-11-10 music, charge-up sound and an audio fix (0.10.2)
 
 Fixed

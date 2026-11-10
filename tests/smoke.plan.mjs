@@ -59,6 +59,9 @@ export default async function plan(ctx) {
     const s = await info();
     expect(s.mode === "ai", `mode is ${s.mode}, expected ai`);
     expect(s.active === 16, `${s.active} balls on the table, expected 16`);
+    await waitFor(() => ev(`${game}.scene.getScene("UI").overlayMode === "start"`), "rules prompt");
+    await ctx.key("Space");
+    await waitFor(() => ev(`${game}.scene.isActive("Game")`), "resumed game");
     await shot("table");
   });
 
@@ -100,6 +103,10 @@ export default async function plan(ctx) {
     await waitFor(() => ev(`${game}.scene.isActive("Menu")`), "Menu scene after reload");
     const button = await point(232, 340); // "Play vs Computer"
     await ctx.tap(button.x, button.y);
+    await waitFor(() => ev(`${game}.scene.getScene("UI").overlayMode === "start"`), "touch rules prompt");
+    const start = await point(583, 370);
+    await ctx.tap(start.x, start.y);
+    await waitFor(() => ev(`${game}.scene.isActive("Game")`), "resumed game on touch");
     await waitFor(async () => (await info()).phase === "aim", "phase aim after the touch start");
     await shootWith((from, to) => swipe(from, to, { steps: 12, stepMs: 16 }));
     await shot("phone-shot");

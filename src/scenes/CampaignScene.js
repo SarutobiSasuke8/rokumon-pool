@@ -3,22 +3,12 @@ import { VARIANT_INFO } from "../game/state.js";
 import { audio } from "../systems/audio.js";
 import { CHARACTERS, goldCount, loadCampaign, opponentData, trophyCount, unlockedCount } from "../systems/campaign.js";
 import { FONT, UI, VIEW, addButton, addText, addTitle, drawRokumon, setupCamera } from "../ui/theme.js";
+import { addPortrait, addTrophy } from "../ui/collectibles.js";
 
 // The ladder: ten cards in two rows. Beaten opponents show their trophy,
 // the next one is open, the rest are locked. Tap a card to read about the
 // opponent, then PLAY.
 const CARD = { w: 168, h: 168, gap: 8, left: 44, top: 74, rowGap: 10 };
-
-// A trophy cup, drawn in code so it needs no art file.
-export function drawTrophy(g, x, y, size, color, alpha = 1) {
-  g.fillStyle(color, alpha);
-  g.fillRoundedRect(x - size * 0.5, y - size * 0.6, size, size * 0.62, { tl: 2, tr: 2, bl: size * 0.42, br: size * 0.42 });
-  g.fillRect(x - size * 0.09, y, size * 0.18, size * 0.3);
-  g.fillRoundedRect(x - size * 0.36, y + size * 0.28, size * 0.72, size * 0.16, 2);
-  g.lineStyle(size * 0.1, color, alpha);
-  g.strokeCircle(x - size * 0.56, y - size * 0.36, size * 0.17);
-  g.strokeCircle(x + size * 0.56, y - size * 0.36, size * 0.17);
-}
 
 function drawLock(g, x, y, size, color) {
   g.lineStyle(size * 0.16, color, 1);
@@ -78,26 +68,27 @@ export class CampaignScene extends Phaser.Scene {
     const { x, y } = this.cardBox(i);
     const cx = x + CARD.w / 2;
     const locked = i >= this.open;
+    const beaten = this.progress.beaten[c.id];
+    const portrait = addPortrait(this, c.id, cx, y + 55, 86);
+    portrait?.setAlpha(locked ? 0.57 : 1);
+    if (beaten) addTrophy(this, x + CARD.w - 24, y + 27, 42, beaten.gold);
     const small = { fontFamily: FONT.display, fontStyle: "600", fontSize: "11px", color: UI.css.dim };
-    const texts = {
-      rank: addTitle(this, cx, y + 50, String(c.rank), { fontSize: "30px", color: UI.css.cream }).setOrigin(0.5),
-      name: addText(this, cx, y + 100, locked ? "? ? ?" : c.name.toUpperCase(), { fontFamily: FONT.display, fontStyle: "700", fontSize: "15px", color: locked ? UI.css.dim : UI.css.cream }).setOrigin(0.5),
-      epithet: addText(this, cx, y + 118, locked ? "Locked" : c.epithet, { fontSize: "11px", color: UI.css.dim }).setOrigin(0.5),
-      game: addText(this, cx, y + 146, VARIANT_INFO[c.variant].short, small).setOrigin(0.5),
-    };
+    addTitle(this, x + 21, y + 26, String(c.rank).padStart(2, "0"), { fontSize: "16px", color: locked ? UI.css.dim : UI.css.brass }).setOrigin(0.5);
+    addText(this, cx, y + 108, c.name.toUpperCase(), { fontFamily: FONT.display, fontStyle: "700", fontSize: "15px", color: locked ? UI.css.dim : UI.css.cream }).setOrigin(0.5);
+    addText(this, cx, y + 125, locked ? "Locked" : c.epithet, { fontSize: "11px", color: UI.css.dim }).setOrigin(0.5);
+    addText(this, cx, y + 148, VARIANT_INFO[c.variant].short, small).setOrigin(0.5);
     this.add.zone(cx, y + CARD.h / 2, CARD.w, CARD.h).setInteractive({ useHandCursor: true })
       .on("pointerdown", () => { audio.unlock(); audio.ui(); this.select(i); });
-    return { c, i, texts };
+    return { c, i };
   }
 
   select(i) {
     this.selected = i;
     const g = this.cardGfx.clear();
-    this.cards.forEach(({ c, i: index, texts }) => {
+    this.cards.forEach(({ c, i: index }) => {
       const { x, y } = this.cardBox(index);
       const cx = x + CARD.w / 2;
       const locked = index >= this.open;
-      const beaten = this.progress.beaten[c.id];
       const on = index === i;
       g.fillStyle(0x000000, 0.4);
       g.fillRoundedRect(x, y + 3, CARD.w, CARD.h, 12);
@@ -106,22 +97,15 @@ export class CampaignScene extends Phaser.Scene {
       g.lineStyle(on ? 2 : 1, on ? UI.brass : UI.line, 1);
       g.strokeRoundedRect(x, y, CARD.w, CARD.h, 12);
 
-      // Medallion in the character's colour.
-      g.fillStyle(0x000000, 0.45);
-      g.fillCircle(cx + 1, y + 53, 32);
-      g.fillStyle(locked ? 0x2a323d : c.color, 1);
-      g.fillCircle(cx, y + 50, 32);
-      g.lineStyle(2, locked ? UI.line : UI.brass, 1);
-      g.strokeCircle(cx, y + 50, 32);
-      g.lineStyle(1, 0x000000, 0.25);
-      g.strokeCircle(cx, y + 50, 27);
-      texts.rank.setVisible(!locked);
-      if (locked) drawLock(g, cx, y + 54, 26, 0x5d6a78);
+      g.fillStyle(c.color, 0.42);
+      g.fillRoundedRect(cx - 46, y + 9, 92, 92, 5);
+      g.lineStyle(1, on ? UI.brass : UI.line, 1);
+      g.strokeRoundedRect(cx - 46, y + 9, 92, 92, 5);
+      if (locked) drawLock(g, x + CARD.w - 22, y + 26, 16, 0x8793a1);
 
-      // Game chip, and the trophy once it is won.
+      // Game chip.
       g.fillStyle(0x0a0d12, 0.9);
-      g.fillRoundedRect(cx - 42, y + 136, 84, 20, 10);
-      if (beaten) drawTrophy(g, x + CARD.w - 24, y + 26, 20, beaten.gold ? 0xf2c33d : 0xb9773a);
+      g.fillRoundedRect(cx - 42, y + 138, 84, 20, 10);
     });
 
     const c = CHARACTERS[i];
@@ -133,7 +117,7 @@ export class CampaignScene extends Phaser.Scene {
     d.lineStyle(1.5, UI.brassDark, 1);
     d.strokeRoundedRect(40, 430, 880, 96, 12);
     if (locked) {
-      this.detailName.setText(`OPPONENT ${c.rank}`).setColor(UI.css.dim);
+      this.detailName.setText(`${c.rank}. ${c.name.toUpperCase()}`).setColor(UI.css.dim);
       this.detailMeta.setText("LOCKED");
       this.detailBlurb.setText(`Beat ${CHARACTERS[this.open - 1].name} to meet this opponent.`);
     } else {
