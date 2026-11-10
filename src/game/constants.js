@@ -32,7 +32,9 @@ export const PHYSICS = Object.freeze({
   // random kick of up to this fraction of the cue ball's impact speed. A
   // physically pure rack sends the wing balls to the corners and leaves the
   // middle standing, which reads as a dud break in a casual game.
-  breakScatter: 0.28,
+  // Measured 2026-11-10 over four full-power breaks each: at 0.28 only two
+  // or three balls travelled more than 90 px; at 0.6 six to eight did.
+  breakScatter: 0.6,
   maxPullback: 160,
   maxShotSpeed: 32,
   restThreshold: 0.08,
@@ -116,6 +118,19 @@ export function ballColor(id) {
 
 // Rows of the standard 8-ball rack triangle. The 8-ball sits in the middle
 // of the third row; suits otherwise alternate so the rack reads clearly.
+// 9-ball: a diamond with the 1 at the front and the 9 in the middle.
+export const NINE_RACK = [
+  [1],
+  [2, 3],
+  [4, 9, 5],
+  [6, 7],
+  [8],
+];
+
+export function rackFor(variant) {
+  return variant === "nineball" ? NINE_RACK : RACK_ORDER;
+}
+
 export const RACK_ORDER = [
   [1],
   [9, 2],

@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import { audio } from "../systems/audio.js";
 import { loadSettings, saveSettings } from "../systems/settings.js";
 import { turnLabel } from "../game/labels.js";
-import { ballTextureKey } from "../game/balls.js";
+import { ballTextureKey, skinFor } from "../game/balls.js";
 import { playerPanels, trayBalls } from "../game/hud.js";
 import { ART_SCALE, ensureBallTextures } from "../systems/ballArt.js";
 import { FONT, UI, VIEW, addButton, addText, addTitle, setupCamera } from "../ui/theme.js";
@@ -27,6 +27,7 @@ export class UIScene extends Phaser.Scene {
   create() {
     setupCamera(this);
     ensureBallTextures(this, MINI_R);
+    this.skin = "standard";
     this.overlayMode = null;
 
     this.cardGfx = this.add.graphics();
@@ -34,6 +35,7 @@ export class UIScene extends Phaser.Scene {
       box,
       name: addText(this, box.x + 12, box.y + box.h / 2, "", { fontFamily: FONT.display, fontStyle: "700", fontSize: "18px" }).setOrigin(0, 0.5),
       group: addText(this, 0, box.y + box.h / 2, "", { fontFamily: FONT.display, fontStyle: "700", fontSize: "12px", color: UI.css.ink, padding: { x: 6, y: 2 } }).setOrigin(0, 0.5),
+      shots: addText(this, box.x + box.w - 10, box.y + box.h / 2, "", { fontFamily: FONT.display, fontStyle: "700", fontSize: "12px", color: UI.css.ink, backgroundColor: UI.css.red, padding: { x: 6, y: 2 } }).setOrigin(1, 0.5).setVisible(false),
       balls: [],
     }));
     this.turnText = addText(this, 46, 504, "", { fontFamily: FONT.display, fontStyle: "700", fontSize: "18px", color: UI.css.brass });
@@ -49,6 +51,7 @@ export class UIScene extends Phaser.Scene {
 
     this.pauseButton = addButton(this, 480, 20, 60, 28, "II", () => this.openPause(), { fontSize: 15 });
     this.buildSpinButton();
+    this.buildBanner();
     this.buildPauseOverlay();
     this.buildSpinOverlay();
 
@@ -59,8 +62,10 @@ export class UIScene extends Phaser.Scene {
     const rotatePrompt = document.getElementById("rotate");
     this.rotatePrompt = rotatePrompt;
     const autoPause = () => this.openPause();
+    const quiet = () => audio.pauseMusic();
     this.game.events.on(Phaser.Core.Events.HIDDEN, autoPause);
     this.game.events.on(Phaser.Core.Events.BLUR, autoPause);
+    this.game.events.on(Phaser.Core.Events.HIDDEN, quiet);
     // The portrait prompt covers the whole table without hiding the tab.
     // Observe the actual prompt so the pause follows the same layout rule.
     const rotation = new ResizeObserver(() => { if (rotatePrompt?.offsetWidth) this.openPause(); });
@@ -76,7 +81,10 @@ export class UIScene extends Phaser.Scene {
       const names = data.names || { 1: "Player 1", 2: "Player 2" };
       const suit = data.assigned[data.turn];
       this.hud = data;
-      this.turnText.setText(data.gameOver ? "" : turnLabel(names, data.turn, suit).toUpperCase());
+      const skin = skinFor(data.variant);
+      if (skin !== this.skin) { this.skin = skin; ensureBallTextures(this, MINI_R, skin); }
+      const shots = (data.shots ?? 1) > 1 ? " · 2 SHOTS" : "";
+      this.turnText.setText(data.gameOver ? "" : `${turnLabel(names, data.turn, suit, data.variant).toUpperCase()}${shots}`);
       this.msgText.setText(data.message || (data.aiTurn || data.phase !== "aim" ? "" : HINT)).setColor(data.message ? UI.css.sky : UI.css.dim);
       this.drawCards(data);
       this.drawTray(data.pocketed || []);
@@ -84,6 +92,8 @@ export class UIScene extends Phaser.Scene {
       if (this.overlayMode === "spin" && !this.canSpin()) this.closeOverlay();
     };
     const onSpin = () => { this.drawSpinButton(); this.drawDial(); };
+    const onBanner = (banner) => this.showBanner(banner);
+    this.game.events.on("match-banner", onBanner);
     const initial = this.game.registry.get("matchHud");
     if (initial) onUpdate(initial);
     this.game.events.on("match-update", onUpdate);
@@ -92,6 +102,8 @@ export class UIScene extends Phaser.Scene {
       rotation.disconnect();
       this.game.events.off(Phaser.Core.Events.HIDDEN, autoPause);
       this.game.events.off(Phaser.Core.Events.BLUR, autoPause);
+      this.game.events.off(Phaser.Core.Events.HIDDEN, quiet);
+      this.game.events.off("match-banner", onBanner);
       this.game.events.off("match-update", onUpdate);
       this.registry.events.off("changedata-spin", onSpin);
     });
@@ -138,6 +150,7 @@ export class UIScene extends Phaser.Scene {
     // The table must be visible before play resumes.
     if (this.rotatePrompt?.offsetWidth) return;
     audio.unlock(); // Mobile browsers can suspend the AudioContext while the tab is hidden.
+    audio.ui();
     this.setPauseVisible(false);
     this.spinOverlay.setVisible(false);
     this.spinButtons.forEach((b) => b.setVisible(false));
@@ -154,17 +167,18 @@ export class UIScene extends Phaser.Scene {
     const shade = this.add.rectangle(VIEW.w / 2, VIEW.h / 2, VIEW.w, VIEW.h, 0x05070b, 0.8).setInteractive();
     const panel = this.add.graphics();
     panel.fillStyle(UI.panel, 0.98);
-    panel.fillRoundedRect(330, 86, 300, 372, 14);
+    panel.fillRoundedRect(330, 62, 300, 420, 14);
     panel.lineStyle(1.5, UI.brassDark, 1);
-    panel.strokeRoundedRect(330, 86, 300, 372, 14);
-    const title = addTitle(this, 480, 122, "PAUSED", { fontSize: "34px", color: UI.css.brass }).setOrigin(0.5);
+    panel.strokeRoundedRect(330, 62, 300, 420, 14);
+    const title = addTitle(this, 480, 96, "PAUSED", { fontSize: "34px", color: UI.css.brass }).setOrigin(0.5);
     this.pauseOverlay = this.add.container(0, 0, [shade, panel, title]).setDepth(100).setVisible(false);
 
-    const row = (i) => 176 + i * 50;
+    const row = (i) => 146 + i * 48;
     const opts = { depth: 101, fontSize: 18 };
     const game = () => this.gameScene();
     this.soundButton = addButton(this, 480, row(2), 240, 38, "", () => { audio.toggleMuted(); this.refreshPauseLabels(); }, opts);
-    this.guideButton = addButton(this, 480, row(3), 240, 38, "", () => {
+    this.musicButton = addButton(this, 480, row(3), 240, 38, "", () => { if (audio.hasMusic) audio.toggleMusic(); this.refreshPauseLabels(); }, opts);
+    this.guideButton = addButton(this, 480, row(4), 240, 38, "", () => {
       const next = saveSettings({ guide: !loadSettings().guide });
       const g = game();
       if (g.settings) g.settings.guide = next.guide;
@@ -178,17 +192,77 @@ export class UIScene extends Phaser.Scene {
         g.scene.restart(g.restartData());
       }, opts),
       this.soundButton,
+      this.musicButton,
       this.guideButton,
-      addButton(this, 480, row(4), 240, 38, "QUIT TO MENU", () => {
+      addButton(this, 480, row(5), 240, 38, "QUIT", () => {
+        const campaign = Boolean(game().opponent);
         this.scene.stop("Game");
-        this.scene.start("Menu");
+        this.scene.start(campaign ? "Campaign" : "Menu");
       }, opts),
     ];
     this.pauseButtons.forEach((b) => b.setVisible(false));
   }
 
+  // ---- banner ---------------------------------------------------------------
+
+  // A notice over the middle of the table, used for fouls: what happened,
+  // what the other player gets, and where the cue ball goes. It fades by
+  // itself and never takes input.
+  buildBanner() {
+    const g = this.add.graphics();
+    this.bannerGfx = g;
+    this.bannerTitle = addTitle(this, 480, 196, "", { fontSize: "44px", color: UI.css.red }).setOrigin(0.5);
+    this.bannerReason = addText(this, 480, 234, "", { fontSize: "15px", color: UI.css.cream }).setOrigin(0.5);
+    this.bannerAward = addTitle(this, 480, 268, "", { fontSize: "28px", color: UI.css.brass }).setOrigin(0.5);
+    this.bannerDetail = addText(this, 480, 300, "", { fontSize: "13px", color: UI.css.dim }).setOrigin(0.5);
+    this.banner = this.add.container(0, 0, [g, this.bannerTitle, this.bannerReason, this.bannerAward, this.bannerDetail]).setDepth(50).setAlpha(0);
+  }
+
+  showBanner({ title = "", lines = [], detail = "", shots = 1 } = {}) {
+    const g = this.bannerGfx.clear();
+    const w = 400;
+    const h = 156;
+    const x = 480 - w / 2;
+    const y = 166;
+    g.fillStyle(0x000000, 0.45);
+    g.fillRoundedRect(x, y + 4, w, h, 14);
+    g.fillStyle(UI.panel, 0.96);
+    g.fillRoundedRect(x, y, w, h, 14);
+    g.lineStyle(2, UI.red, 1);
+    g.strokeRoundedRect(x, y, w, h, 14);
+    g.fillStyle(UI.red, 1);
+    g.fillRect(x + 16, y + 1, w - 32, 3);
+    // Two shots, shown as two cue balls.
+    if (shots > 1) {
+      [-1, 1].forEach((side) => {
+        const cx = 480 + side * 172;
+        g.fillStyle(0x000000, 0.4);
+        g.fillCircle(cx + 1, 270, 11);
+        g.fillStyle(UI.cream, 1);
+        g.fillCircle(cx, 268, 11);
+        g.lineStyle(1, 0x6b6250, 1);
+        g.strokeCircle(cx, 268, 11);
+      });
+    }
+    this.bannerTitle.setText(title);
+    this.bannerReason.setText(lines[0] || "");
+    this.bannerAward.setText(lines[1] || "");
+    this.bannerDetail.setText(detail || "");
+    this.tweens.killTweensOf(this.banner);
+    this.banner.setAlpha(0);
+    this.tweens.chain({
+      targets: this.banner,
+      tweens: [
+        { alpha: 1, duration: 140, ease: "Quad.easeOut" },
+        { alpha: 1, duration: 2300 },
+        { alpha: 0, duration: 380, ease: "Quad.easeIn" },
+      ],
+    });
+  }
+
   refreshPauseLabels() {
     this.soundButton?.setLabel(audio.muted ? "SOUND: OFF" : "SOUND: ON");
+    this.musicButton?.setLabel(!audio.hasMusic ? "MUSIC: NONE YET" : audio.musicOn ? "MUSIC: ON" : "MUSIC: OFF");
     this.guideButton?.setLabel(loadSettings().guide ? "AIM GUIDE: ON" : "AIM GUIDE: OFF");
   }
 
@@ -276,7 +350,7 @@ export class UIScene extends Phaser.Scene {
   // ---- HUD ------------------------------------------------------------------
 
   ballImage(id, x, y, alpha = 1) {
-    return this.add.image(x, y, ballTextureKey(id, MINI_R)).setScale(1 / ART_SCALE).setAlpha(alpha);
+    return this.add.image(x, y, ballTextureKey(id, MINI_R, this.skin)).setScale(1 / ART_SCALE).setAlpha(alpha);
   }
 
   // One card per player: name, group chip and the group's seven balls, with
@@ -303,8 +377,11 @@ export class UIScene extends Phaser.Scene {
         : panel.group === "solid" ? { bg: "#e3b458", fg: UI.css.ink }
           : panel.group === "stripe" ? { bg: "#cfe6f2", fg: UI.css.ink }
             : { bg: "#2e3a48", fg: "#d5dde6" };
-      card.group.setText(panel.label).setStyle({ backgroundColor: chip.bg, color: chip.fg });
+      const blackball = data.variant === "blackball";
+      const tone = blackball && panel.group === "solid" && !panel.onEight ? { bg: "#e0564d", fg: UI.css.ink } : chip;
+      card.group.setText(panel.label).setStyle({ backgroundColor: tone.bg, color: tone.fg });
       card.group.setX(card.name.x + card.name.width + 10);
+      card.shots.setText("2 SHOTS").setVisible(panel.active && panel.shots > 1);
 
       card.balls.forEach((b) => b.destroy());
       card.balls = [];

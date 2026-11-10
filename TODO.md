@@ -41,9 +41,13 @@ Use this file for actionable game project work. Keep items concrete.
 - [ ] #task Deploy: make the repo public and run the Pages workflow, or `wrangler login` and deploy `dist/` to Cloudflare Pages. Then a phone playtest.
 - [ ] #task Copy the hub media from `art/banners/` into the Rokumon Games repo and update its manifest (media, version 0.8.0, description: the controls changed).
 - [ ] #task Tune `SPIN` in `src/game/constants.js` by hand after the phone playtest.
+- [ ] #task Add the Suno track as `src/audio/music-main.mp3` and rebuild.
+- [ ] #task Listen to every effect in `src/audio/` in play; regenerate any that are wrong with `scripts/make-sfx.ps1 -Force -Only <name>`.
+- [ ] #task Teach the computer to avoid shots that risk the 8 (or the black) going down early.
 
 ## Done
 
+- 2026-11-10: 0.9.0 (two-shot fouls with banner, 9-ball, blackball, campaign, recorded sound effects, music support).
 - 2026-11-10: completion overhaul to 0.8.0 (controls, Blender table, rolling balls, menus, spin, results, banners). See `CHANGELOG.md` and `ROADMAP.md`.
 - 2026-09-06: playable core (table, rack, rules, debug harness).
 - 2026-09-30: build review fixes and gameplay upgrade (see `CHANGELOG.md`).

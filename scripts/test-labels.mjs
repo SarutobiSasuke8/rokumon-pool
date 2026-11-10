@@ -33,6 +33,11 @@ test("default HUD message (with suit suffix) uses Your", () => {
 test("rules messages read naturally for You", () => {
   assert.equal(withNames("Player 1 pots and stays at the table.", AI_NAMES), "You pot and stay at the table.");
   assert.equal(withNames("Foul: scratch. Player 1 has ball in hand.", AI_NAMES), "Foul: scratch. You have ball in hand.");
+  assert.equal(withNames("Foul: no ball hit. Player 1 has two shots.", AI_NAMES), "Foul: no ball hit. You have two shots.");
+  assert.equal(withNames("Foul: scratch. Player 2 has two shots, cue ball behind the line.", AI_NAMES), "Foul: scratch. Computer has two shots, cue ball behind the line.");
+  assert.equal(withNames("Player 1 has one shot left.", AI_NAMES), "You have one shot left.");
+  assert.equal(withNames("Player 1 pots and still has two shots.", AI_NAMES), "You pot and still have two shots.");
+  assert.equal(withNames("Player 1 potted the 9-ball!", AI_NAMES), "You potted the 9-ball!");
   assert.equal(withNames("Player 2 pocketed the 8-ball early. Player 1 wins!", AI_NAMES), "Computer pocketed the 8-ball early. You win!");
   assert.equal(withNames("Player 1 pocketed the 8-ball early. Player 2 wins!", AI_NAMES), "You pocketed the 8-ball early. Computer wins!");
   assert.equal(withNames("Player 1 cleared the table and sank the 8-ball!", AI_NAMES), "You cleared the table and sank the 8-ball!");
@@ -42,6 +47,7 @@ test("no output ever contains You's or Player N in solo mode", () => {
   const samples = [
     "Player 1's turn", "Player 1's turn (solids)", "Player 2's turn (stripes)",
     "Foul: hit a stripe (9) first. Player 2 has ball in hand.", "Player 2 pots and stays at the table.",
+    "Foul: hit a yellow first. Player 1 has two shots.", "Player 1 has one shot left.", "Player 1 pots and still has two shots.",
     "Player 1 pocketed the 8-ball on a foul. Player 2 wins!",
   ];
   samples.forEach((s) => {

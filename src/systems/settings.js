@@ -1,7 +1,7 @@
 // Player preferences, remembered per browser. Storage can be missing or
 // throw (private mode, blocked site data); defaults apply and play carries on.
 const KEY = "rokumon-pool:settings";
-const DEFAULTS = Object.freeze({ guide: true });
+const DEFAULTS = Object.freeze({ guide: true, variant: "eightball" });
 
 export function loadSettings() {
   try {

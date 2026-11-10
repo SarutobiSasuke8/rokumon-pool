@@ -119,8 +119,8 @@ export function ballRenderSize(radius) {
 
 // Draws one ball into `image` (an ImageData of ballRenderSize) at the given
 // orientation.
-export function renderBall(image, id, radius, m) {
-  const ball = ballIdentity(id);
+export function renderBall(image, id, radius, m, skin = "standard") {
+  const ball = ballIdentity(id, skin);
   const size = image.width;
   const R = radius * BALL_RENDER_SCALE;
   const c = size / 2;
@@ -148,7 +148,7 @@ export function renderBall(image, id, radius, m) {
       if (ball.striped && Math.abs(ly) > STRIPE_BAND * 0.92) { r = WHITE[0]; g = WHITE[1]; b = WHITE[2]; }
       if (ball.kind === "cue") {
         if (Math.max(Math.abs(lx), Math.abs(ly), Math.abs(lz)) > DOT_COS) { r = DOT[0]; g = DOT[1]; b = DOT[2]; }
-      } else if (Math.abs(lz) > DISC_COS) {
+      } else if (glyph && Math.abs(lz) > DISC_COS) {
         r = WHITE[0]; g = WHITE[1]; b = WHITE[2];
         const u = (lz > 0 ? lx : -lx) / NUMBER_DISC;
         const v = ly / NUMBER_DISC;
@@ -175,8 +175,9 @@ export function renderBall(image, id, radius, m) {
 
 // A live, rolling ball sprite for the table.
 export class BallView {
-  constructor(scene, id, radius, x, y) {
+  constructor(scene, id, radius, x, y, skin = "standard") {
     this.id = id;
+    this.skin = skin;
     this.radius = radius;
     this.matrix = identityMatrix();
     this.dirty = true;
@@ -211,7 +212,7 @@ export class BallView {
 
   redraw() {
     if (!this.dirty) return;
-    renderBall(this.pixels, this.id, this.radius, this.matrix);
+    renderBall(this.pixels, this.id, this.radius, this.matrix, this.skin);
     this.texture.getContext().putImageData(this.pixels, 0, 0);
     this.texture.refresh();
     this.dirty = false;

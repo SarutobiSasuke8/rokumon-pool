@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import Phaser from "phaser";
 import "./fonts.css";
-import { BootScene } from "./scenes/BootScene.js"; import { MenuScene } from "./scenes/MenuScene.js"; import { GameScene } from "./scenes/GameScene.js"; import { UIScene } from "./scenes/UIScene.js"; import { GameOverScene } from "./scenes/GameOverScene.js"; import { HowToScene } from "./scenes/HowToScene.js";
+import { BootScene } from "./scenes/BootScene.js"; import { MenuScene } from "./scenes/MenuScene.js"; import { GameScene } from "./scenes/GameScene.js"; import { UIScene } from "./scenes/UIScene.js"; import { GameOverScene } from "./scenes/GameOverScene.js"; import { HowToScene } from "./scenes/HowToScene.js"; import { CampaignScene } from "./scenes/CampaignScene.js";
 import { VIEW, RENDER_SCALE } from "./ui/theme.js";
 
 // Phaser draws text to a canvas, so the typefaces must be ready before the
@@ -38,7 +38,7 @@ async function start() {
         velocityIterations: 6,
       },
     },
-    scene: [BootScene, MenuScene, HowToScene, GameScene, UIScene, GameOverScene],
+    scene: [BootScene, MenuScene, HowToScene, CampaignScene, GameScene, UIScene, GameOverScene],
   });
 
   // Drop the static loading line once Phaser has booted.

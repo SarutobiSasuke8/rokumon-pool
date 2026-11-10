@@ -1,3 +1,5 @@
+import { audio } from "../systems/audio.js";
+
 // Shared look: sizes, typefaces, colours and the small widgets every scene
 // uses. Scenes lay out on a 960x540 logical canvas; the game renders at
 // RENDER_SCALE times that so text and art stay sharp on phone screens.
@@ -72,7 +74,7 @@ export function addButton(scene, x, y, w, h, label, onPress, { primary = false, 
   zone.on("pointerover", () => { state = "over"; draw(); });
   zone.on("pointerout", () => { state = "idle"; draw(); });
   zone.on("pointerdown", (p, lx, ly, event) => { state = "down"; draw(); event?.stopPropagation?.(); });
-  zone.on("pointerup", (p, lx, ly, event) => { state = "over"; draw(); event?.stopPropagation?.(); onPress(); });
+  zone.on("pointerup", (p, lx, ly, event) => { state = "over"; draw(); event?.stopPropagation?.(); audio.unlock(); audio.ui(); onPress(); });
   draw();
   const all = [plate, text, zone];
   return {

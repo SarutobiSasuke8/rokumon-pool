@@ -20,8 +20,8 @@ function circle(ctx, r) {
 // Paints one ball centred in a square canvas of ballTextureSize(radius).
 // Order: body, stripe band, shading, number disc and number, outline. The
 // number goes on after the shading so the highlight never washes it out.
-export function paintBall(ctx, id, radius, scale = ART_SCALE) {
-  const ball = ballIdentity(id);
+export function paintBall(ctx, id, radius, scale = ART_SCALE, skin = "standard") {
+  const ball = ballIdentity(id, skin);
   const size = ballTextureSize(radius, scale);
   const R = radius * scale;
   ctx.save();
@@ -91,13 +91,13 @@ function paintShadow(ctx, radius, scale = ART_SCALE) {
 
 // Creates the textures for every ball at one radius. Safe to call from any
 // scene and more than once: existing textures are kept.
-export function ensureBallTextures(scene, radius) {
+export function ensureBallTextures(scene, radius, skin = "standard") {
   const size = ballTextureSize(radius);
   BALL_IDS.forEach((id) => {
-    const key = ballTextureKey(id, radius);
+    const key = ballTextureKey(id, radius, skin);
     if (scene.textures.exists(key)) return;
     const tex = scene.textures.createCanvas(key, size, size);
-    paintBall(tex.getContext(), id, radius);
+    paintBall(tex.getContext(), id, radius, ART_SCALE, skin);
     tex.refresh();
   });
   const shadowKey = shadowTextureKey(radius);

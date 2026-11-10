@@ -98,7 +98,7 @@ export default async function plan(ctx) {
     // real phone, then start a match with a touch tap on the menu button.
     await viewport("phone", { reload: true });
     await waitFor(() => ev(`${game}.scene.isActive("Menu")`), "Menu scene after reload");
-    const button = await point(232, 244); // "Play vs Computer"
+    const button = await point(232, 340); // "Play vs Computer"
     await ctx.tap(button.x, button.y);
     await waitFor(async () => (await info()).phase === "aim", "phase aim after the touch start");
     await shootWith((from, to) => swipe(from, to, { steps: 12, stepMs: 16 }));

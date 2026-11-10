@@ -12,29 +12,29 @@ const CARDS = [
     ],
   },
   {
-    title: "POWER",
+    title: "POWER AND SPIN",
     lines: [
-      "Pull the brass handle on the power bar down.",
-      "Let go to shoot. The further down, the harder the shot.",
+      "Pull the brass handle on the power bar down and let go to shoot.",
       "Slide it back to the top and let go to cancel.",
+      "Tap the SPIN ball, then touch where the cue should strike: high to follow, low to draw back, left or right to change the rebound.",
     ],
   },
   {
-    title: "SPIN",
+    title: "8-BALL AND BLACKBALL",
     lines: [
-      "Tap the SPIN ball, then touch where the cue should strike.",
-      "High: the cue ball follows on after contact.",
-      "Low: it draws back. Left and right change how it leaves a cushion.",
-      "Spin resets after every shot.",
+      "The first ball you pot decides your group. Pot one of yours and you shoot again.",
+      "Clear your group, then pot the 8 (the black) to win. Pot it early and you lose.",
+      "A foul gives your opponent TWO SHOTS: a scratch, missing every ball, or hitting the wrong group first.",
+      "After a scratch the cue ball goes behind the line. Otherwise it stays where it lies.",
     ],
   },
   {
-    title: "8-BALL RULES",
+    title: "9-BALL",
     lines: [
-      "The first ball you pot decides your group: solids or stripes.",
-      "Pot a ball of your group and you shoot again.",
-      "A foul gives your opponent the cue ball in hand: a scratch, missing every ball, or hitting the wrong group first.",
-      "Clear your group, then pot the 8-ball to win. Pot the 8 early and you lose.",
+      "Always hit the lowest numbered ball on the table first.",
+      "Pot any ball on a legal shot and you shoot again.",
+      "Pot the 9 on a legal shot, at any time, and you win.",
+      "A foul gives your opponent the cue ball in hand, anywhere on the table.",
     ],
   },
 ];

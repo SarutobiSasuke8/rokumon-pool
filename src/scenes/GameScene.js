@@ -1,6 +1,8 @@
 import Phaser from "phaser";
-import { TABLE, BALL, PHYSICS, INPUT, COLORS, RACK_ORDER, AI_DIFFICULTY, POWER_BAR, PLAY_ZONE, SPIN, resolveDifficulty } from "../game/constants.js";
-import { createMatchState, snapshotMatch } from "../game/state.js";
+import { TABLE, BALL, PHYSICS, INPUT, COLORS, AI_DIFFICULTY, POWER_BAR, PLAY_ZONE, SPIN, rackFor, resolveDifficulty } from "../game/constants.js";
+import { createMatchState, pottedCount, resolveVariant, snapshotMatch } from "../game/state.js";
+import { skinFor } from "../game/balls.js";
+import { recordCampaignResult } from "../systems/campaign.js";
 import { resolveShot, isLegalFirstContact } from "../game/rules.js";
 import { withNames as formatNames } from "../game/labels.js";
 import { projectCuePath } from "../game/aim.js";
@@ -44,7 +46,10 @@ export class GameScene extends Phaser.Scene {
   init(data) {
     this.mode = data?.mode === "ai" ? "ai" : "pvp";
     this.difficulty = resolveDifficulty(data?.difficulty);
-    this.names = this.mode === "ai" ? { 1: "You", 2: "Computer" } : { 1: "Player 1", 2: "Player 2" };
+    this.variant = resolveVariant(data?.variant);
+    // A campaign opponent: a named character with their own way of playing.
+    this.opponent = this.mode === "ai" && data?.opponent ? data.opponent : null;
+    this.names = this.mode === "ai" ? { 1: "You", 2: this.opponent ? this.opponent.name : "Computer" } : { 1: "Player 1", 2: "Player 2" };
   }
 
   create() {
@@ -52,7 +57,8 @@ export class GameScene extends Phaser.Scene {
     // A plain DOM marker so tests (and the hub) can tell which screen is up.
     document.body.dataset.screen = "game";
     this.settings = loadSettings();
-    this.match = createMatchState();
+    this.match = createMatchState(this.variant);
+    this.skin = skinFor(this.variant);
     this.aiPending = false;
     this.aiPreview = null;
     this.shotIndex = 0;
@@ -110,6 +116,7 @@ export class GameScene extends Phaser.Scene {
     hub.score(0);
     this.hubStartedAt = performance.now();
     this.resetAim();
+    audio.rack();
     this.updateHud(`${this.names[1]} break${this.mode === "ai" ? "" : "s"}.`);
     installDebug(this, () => snapshotMatch(this.match));
   }
@@ -143,13 +150,15 @@ export class GameScene extends Phaser.Scene {
   }
 
   aiTuning() {
-    const { skill, weakShotChance, loosePlacement } = AI_DIFFICULTY[this.difficulty];
+    const { skill, weakShotChance, loosePlacement } = this.opponent?.tuning ?? AI_DIFFICULTY[this.difficulty];
     return { skill, weakShotChance, loosePlacement };
   }
 
-  // Data that restarts this match in the same mode and difficulty.
+  // Data that restarts this match in the same game, mode and difficulty.
   restartData() {
-    return this.mode === "ai" ? { mode: this.mode, difficulty: this.difficulty } : { mode: this.mode };
+    const base = { mode: this.mode, variant: this.variant };
+    if (this.mode !== "ai") return base;
+    return this.opponent ? { ...base, opponent: this.opponent } : { ...base, difficulty: this.difficulty };
   }
 
   // Called from update() while it is the computer's turn. Placement is
@@ -165,10 +174,12 @@ export class GameScene extends Phaser.Scene {
     if (this.phase !== PHASE.AIM) return;
     this.aiPending = true;
     this.updateHud(`${this.names[AI.player]} is lining up a shot.`);
-    this.time.delayedCall(AI.thinkMs, () => {
+    this.time.delayedCall(this.opponent?.tuning?.thinkMs ?? AI.thinkMs, () => {
       if (this.phase !== PHASE.AIM || !this.isAiTurn()) { this.aiPending = false; return; }
       const plan = planShot(this.aiContext());
       if (!plan) { this.aiPending = false; return; }
+      // Some characters hit everything harder, or softer, than they need to.
+      plan.power = Phaser.Math.Clamp(plan.power * (this.opponent?.tuning?.powerBias ?? 1), 0.12, 1);
       this.aiPreview = { angle: plan.angle, power: plan.power };
       this.time.delayedCall(AI.previewMs, () => {
         this.aiPreview = null;
@@ -349,10 +360,10 @@ export class GameScene extends Phaser.Scene {
     // runs straight through and only the back-corner balls fly. A sub-pixel
     // jitter, as in any real rack, scatters the wave across the whole pack.
     const jitter = () => (Math.random() - 0.5) * PHYSICS.rackJitter * 2;
-    RACK_ORDER.forEach((row, rowIndex) => {
+    rackFor(this.variant).forEach((row, rowIndex) => {
       const x = FOOT_X + rowIndex * rowDX;
       row.forEach((num, i) => {
-        const y = TABLE.midY + (i - rowIndex / 2) * pitch;
+        const y = TABLE.midY + (i - (row.length - 1) / 2) * pitch;
         this.addBall(num, x + jitter(), y + jitter());
       });
     });
@@ -371,7 +382,7 @@ export class GameScene extends Phaser.Scene {
     // A live shaded sphere (src/systems/ballRender.js) over a soft contact
     // shadow on its own layer, so it never darkens a neighbour in the rack.
     const shadow = this.add.image(x + r * 0.28, y + r * 0.36, shadowTextureKey(r)).setScale(1.12 / ART_SCALE).setDepth(1.5);
-    const ball = new BallView(this, id, r, x, y);
+    const ball = new BallView(this, id, r, x, y, this.skin);
     ball.image.setDepth(2);
     this.balls.set(String(id), { id, body, ball, view: ball.image, shadow, active: true, last: { x, y } });
     return this.balls.get(String(id));
@@ -981,7 +992,7 @@ export class GameScene extends Phaser.Scene {
     const pocketed = this.pocketedThisTurn.splice(0);
     const result = resolveShot(this.match, { pocketed, firstContact: this.firstContact, isBreak: this.currentShotIsBreak });
     this.match = result.match;
-    hub.score(14 - this.match.remaining.solid.length - this.match.remaining.stripe.length);
+    hub.score(pottedCount(this.match));
     this.firstContact = null;
 
     const st = this.stats[shooter];
@@ -995,17 +1006,37 @@ export class GameScene extends Phaser.Scene {
       this.endGame(result.winner, result.message);
       return;
     }
-    if (result.respotEight) this.respotEight();
+    (result.respot || []).forEach((id) => this.respotBall(id));
+    if (result.foulReason) this.announceFoul(result);
     if (result.ballInHand) {
-      // A scratch on the break puts the cue ball behind the head string.
-      this.kitchenOnly = this.currentShotIsBreak && pocketed.includes("cue");
+      // 8-ball and blackball bring a pocketed cue ball back behind the head
+      // string; 9-ball gives it anywhere.
+      this.kitchenOnly = result.placement === "kitchen";
       this.beginPlacement();
-      const where = this.kitchenOnly ? " behind the head string" : "";
+      const where = this.kitchenOnly ? " behind the line" : "";
       this.updateHud(this.isAiTurn() ? result.message : `${result.message} Tap or drag to place the cue ball${where}.`);
       return;
     }
     this.resetAim();
     this.updateHud(result.message);
+  }
+
+  // A foul is announced in the middle of the table: what went wrong and what
+  // the other player gets for it.
+  announceFoul(result) {
+    const other = this.match.turn;
+    const reason = result.foulReason[0].toUpperCase() + result.foulReason.slice(1);
+    let award = `Player ${other} has two shots`;
+    if (this.variant === "nineball") award = `Player ${other} has ball in hand`;
+    const detail = result.placement === "kitchen" ? "Cue ball behind the line" : result.placement === "anywhere" ? "Place the cue ball anywhere" : "Cue ball stays where it lies";
+    audio.foul();
+    this.game.events.emit("match-banner", {
+      title: "FOUL",
+      lines: [reason, this.withNames(award).toUpperCase()],
+      detail: this.isAiTurn() && result.placement !== "none" ? "" : detail,
+      shots: this.match.shots,
+      tone: "foul",
+    });
   }
 
   endGame(winner, message) {
@@ -1018,31 +1049,37 @@ export class GameScene extends Phaser.Scene {
     this.showCue(null);
     this.updateHud(message);
     const durationMs = Math.round(performance.now() - this.hubStartedAt);
-    const score = 14 - this.match.remaining.solid.length - this.match.remaining.stripe.length;
+    const score = pottedCount(this.match);
     hub.gameOver(score, durationMs);
     hub.event("match-won", { winner, mode: this.mode, seconds: Math.round(durationMs / 1000) });
-    const record = this.mode === "ai" ? recordResult(this.difficulty, winner === 1) : null;
+    // Campaign matches go on the ladder; quick matches on the difficulty record.
+    let record = null;
+    let campaign = null;
+    if (this.opponent) campaign = recordCampaignResult(this.opponent.id, { won: winner === 1, fouls: this.stats[1].fouls, shots: this.stats[1].shots });
+    else if (this.mode === "ai") record = recordResult(this.difficulty, winner === 1);
+    if (winner === 1 || this.mode !== "ai") audio.win(); else audio.lose();
     this.time.delayedCall(900, () => {
       this.scene.stop("UI");
-      this.scene.start("GameOver", { winner, message: this.withNames(message), ...this.restartData(), names: this.names, stats: this.stats, durationMs, record });
+      this.scene.start("GameOver", { winner, message: this.withNames(message), ...this.restartData(), names: this.names, stats: this.stats, durationMs, record, campaign });
     });
   }
 
-  // Put the 8-ball back on the foot spot (or the nearest free point along
-  // the long axis) after it dropped on the break.
-  respotEight() {
-    const existing = this.balls.get("8");
+  // Put a ball back on the foot spot (or the nearest free point along the
+  // long axis): the 8 after it dropped on the break, the 9 after a foul.
+  respotBall(id) {
+    const key = String(id);
+    const existing = this.balls.get(key);
     if (existing && existing.active) return;
-    if (existing) this.balls.delete("8");
-    this.pocketedOrder = this.pocketedOrder.filter((id) => id !== 8);
+    if (existing) this.balls.delete(key);
+    this.pocketedOrder = this.pocketedOrder.filter((n) => n !== id);
     const r = BALL.radius;
-    const free = (x, y) => this.activeTargets("8").every((t) => Math.hypot(t.x - x, t.y - y) >= r * 2 + 1);
+    const free = (x, y) => this.activeTargets(key).every((t) => Math.hypot(t.x - x, t.y - y) >= r * 2 + 1);
     let x = FOOT_X;
     for (let d = 0; d < 320; d += r) {
       if (free(FOOT_X + d, TABLE.midY)) { x = FOOT_X + d; break; }
       if (free(FOOT_X - d, TABLE.midY)) { x = FOOT_X - d; break; }
     }
-    this.addBall(8, x, TABLE.midY);
+    this.addBall(id, x, TABLE.midY);
   }
 
   updateHud(message) {
@@ -1051,10 +1088,13 @@ export class GameScene extends Phaser.Scene {
       assigned: { ...this.match.assigned },
       remaining: { solid: [...this.match.remaining.solid], stripe: [...this.match.remaining.stripe] },
       pocketed: [...this.pocketedOrder],
+      variant: this.variant,
+      shots: this.match.shots ?? 1,
+      balls: this.match.balls ? [...this.match.balls] : null,
       phase: this.phase,
       mode: this.mode,
       aiTurn: this.isAiTurn(),
-      difficultyLabel: this.mode === "ai" ? AI_DIFFICULTY[this.difficulty].label : null,
+      difficultyLabel: this.mode === "ai" && !this.opponent ? AI_DIFFICULTY[this.difficulty].label : null,
       names: { ...this.names },
       // The turn and group are on the HUD cards; an empty message shows the
       // controls hint instead of repeating them.

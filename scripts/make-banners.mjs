@@ -125,6 +125,39 @@ try {
     } else {
       await tab.screenshot({ path: "art/banners/screenshot-02-break.png" });
     }
+    // The campaign ladder part-way up, and a blackball table.
+    await tab.evaluate(() => {
+      localStorage.setItem("rokumon-pool:campaign", JSON.stringify({ beaten: {
+        anayama: { wins: 1, gold: true, bestShots: 14 },
+        isa: { wins: 2, gold: false, bestShots: 19 },
+        seikai: { wins: 1, gold: true, bestShots: 16 },
+      } }));
+    });
+    await tab.goto(`${origin}/dist/index.html`);
+    await tab.waitForFunction(() => document.body.dataset.screen === "menu");
+    await tab.keyboard.press("c");
+    await tab.waitForFunction(() => document.body.dataset.screen === "campaign");
+    await tab.waitForTimeout(400);
+    await tab.screenshot({ path: "art/banners/screenshot-04-campaign.png" });
+    await tab.keyboard.press("Escape");
+    await tab.waitForFunction(() => document.body.dataset.screen === "menu");
+    // Blackball is the third game chip on the title screen.
+    await tab.mouse.click((326 / 960) * 1920, (284 / 540) * 1080);
+    await tab.keyboard.press("2");
+    await tab.waitForFunction(() => document.body.dataset.screen === "game");
+    await tab.waitForTimeout(400);
+    await tab.evaluate(() => {
+      const d = window.__GAME_DEBUG__;
+      const s = d.getScene();
+      d.strike(0.95);
+      for (let i = 0; i < 80 && (s.phase === "shooting" || s.strike); i += 1) d.stepFrames(30);
+      if (s.phase === "placing") d.placeCue(240, 270);
+      if (s.phase === "aim") { s.resetAim(); s.power = 0.5; }
+      d.stepFrames(260);
+    });
+    await tab.waitForTimeout(300);
+    await tab.screenshot({ path: "art/banners/screenshot-05-blackball.png" });
+    await tab.evaluate(() => { localStorage.removeItem("rokumon-pool:campaign"); localStorage.removeItem("rokumon-pool:settings"); });
     console.log("wrote art/banners/screenshot-*.png");
     await context.close();
   } else {

@@ -1,6 +1,6 @@
 # Rokumon Pool
 
-A top-down browser pool game with 8-ball rules, for phones and desktop. You turn the cue by dragging on the table and shoot with a power bar. Play against a computer opponent or share the screen with a second player.
+A top-down browser pool game for phones and desktop, with three games (8-ball, 9-ball and blackball) and a ten-opponent campaign. You turn the cue by dragging on the table and shoot with a power bar. Play the campaign, a quick match against the computer, or share the screen with a second player.
 
 It is part of the Rokumon Games family of small browser games.
 
@@ -10,9 +10,9 @@ There is no betting, wagering, currency or real-money mechanic in this game. It 
 
 ## Status
 
-Version 0.8.0. The game is feature complete for 1.0: separate aim and power controls, cue-ball spin, a table rendered in Blender, rolling balls, a title screen, how-to-play, pause menu, results with match figures and a win/loss record. What stands between this and 1.0 is listed in `ROADMAP.md` under Milestone 7: a playtest on a real phone, feel tuning after it, the final name and a deploy.
+Version 0.9.0. The game is feature complete for 1.0: three games, a campaign with ten opponents and trophies, separate aim and power controls, cue-ball spin, a table rendered in Blender, rolling balls, recorded sound effects, and full menus and results screens. What stands between this and 1.0 is listed in `ROADMAP.md` under Milestone 7: a playtest on a real phone, feel tuning after it, a music track, the final name and a deploy.
 
-Automated checks cover real mouse and touch input in a phone-sized browser. Nobody has yet played it on a physical phone.
+Automated checks cover real mouse and touch input in a phone-sized browser. Nobody has yet played it on a physical phone, and nobody has yet listened to the generated sound effects in play.
 
 ## Run it
 
@@ -38,18 +38,28 @@ Vite prints a local address to open in a browser. To try it on a phone on the sa
 
 ## How to play
 
-- On the title screen choose Play vs Computer (click it, press 1, or press Space) or Two Players (click it or press 2). Pick the computer's difficulty (Easy, Normal or Hard) by tapping it or with the left and right arrow keys; the choice is remembered, and your win/loss record against each level is shown.
+**Games.** Pick one on the title screen under Quick Match.
+
+- **8-ball.** The first ball you pot decides your group, solids or stripes. Pot one of yours and you shoot again. Clear your group, then pot the 8 to win. Pot the 8 early and you lose; the 8 dropping on the break is respotted.
+- **Blackball.** The same rules with seven reds, seven yellows and the black.
+- **9-ball.** Nine balls in a diamond. Always hit the lowest numbered ball first. Any ball potted on a legal shot keeps you at the table, and potting the 9 on a legal shot wins at any time.
+
+**Fouls.** A scratch, missing every ball, or hitting the wrong ball first. A banner in the middle of the table says what went wrong and what the other player gets.
+
+- In 8-ball and blackball a foul gives your opponent **two shots**. A pot does not use one up. The cue ball stays where it lies, except after a scratch, when it is placed behind the head string. The shooter's card shows a red "2 SHOTS" chip.
+- In 9-ball a foul gives ball in hand anywhere. The 9 going down on a foul is respotted.
+- There is no call-pocket rule.
+
+**Campaign.** A ladder of ten opponents named for the Sanada Ten Braves. Each plays differently (accuracy, shot choice, how hard they hit, how long they think) and some prefer 9-ball or blackball. Beat one to win their trophy and unlock the next. Win without a foul and the trophy is gold. Progress is kept on the device.
+
+**Playing a shot.**
+
 - Aim: drag anywhere on the table to turn the cue. The cue turns by the angle your finger sweeps around the cue ball, so your finger never has to cover the shot. A tap points the cue straight at the tapped spot. On desktop the arrow keys and the mouse wheel give fine aim; hold Shift for finer.
-- Power: pull the brass handle on the power bar (left margin) down and let go to shoot. Slide it back to the top and let go to cancel. Full power is available wherever the cue ball lies.
-- Spin: tap the SPIN ball (bottom right), then touch where the cue should strike. High makes the cue ball follow on after contact, low draws it back, left and right change how it leaves a cushion. Spin resets after every shot. The computer does not use spin.
-- The aim guide shows the cue ball's path, a ghost ball at the contact point, the line the object ball will take and where the cue ball heads afterwards. The target ball and its path are green when it is a legal first hit for you and red when it would be a foul. The guide can be switched off in the pause menu.
-- Standard 15-ball rack with 6 pockets. The first legal pot assigns suits. Pot all of your suit, then pot the 8-ball, to win.
-- Potting your own suit lets you continue. A foul gives your opponent ball in hand: tap or drag to place the cue ball, and drag it again to move it before you shoot. Fouls are a scratch, hitting no ball, or hitting the wrong ball first. After a scratch on the break the cue ball goes behind the head string.
-- Potting the 8-ball early loses the game. The 8-ball dropping on the break is respotted rather than counted as a loss.
-- There is no call-pocket rule: any legal pot of the 8-ball after clearing your suit wins.
-- Balls roll: the stripe tumbles and the number comes round as a ball moves. At rest each ball turns its number back up so it can always be read. The cue ball carries red dots so its spin shows.
-- The card above the table for each player shows their group (open table, solids, stripes, then on the 8) and the group's balls, with the pocketed ones faded. The lit card is the player to shoot. Pocketed balls collect in the tray on the right in the order they dropped.
-- The results screen shows each player's shots, balls potted, best run and fouls, the match time and your record on that difficulty.
+- Power: pull the brass handle on the power bar (left margin) down and let go to shoot. Slide it back to the top and let go to cancel.
+- Spin: tap the SPIN ball (bottom right), then touch where the cue should strike. High makes the cue ball follow on, low draws it back, left and right change how it leaves a cushion. Spin resets after every shot. The computer does not use spin.
+- The aim guide shows the cue ball's path, a ghost ball at the contact point, the line the object ball will take and where the cue ball heads afterwards. Green means a legal first hit, red a foul. It can be switched off in the pause menu.
+
+**On screen.** The card above the table for each player shows their group and its balls, with the pocketed ones faded; in 9-ball the shooter's card shows the run of balls and which one is on. Pocketed balls collect in the tray on the right. Balls roll as they move and turn their number back up at rest. The results screen shows shots, balls potted, best run and fouls, plus your record or the trophy you won.
 
 ## Controls
 
@@ -60,9 +70,9 @@ Vite prints a local address to open in a browser. To try it on a phone on the sa
 | Left and right arrow keys, mouse wheel | Fine aim. Hold Shift with the arrows for finer. |
 | Pull the power bar down and release | Shoot. Release at the top to cancel. |
 | SPIN ball, bottom right | Open the spin control. |
-| 1, 2 or Space on the title screen | Start vs Computer (1 or Space) or Two Players (2). H opens How to Play. |
+| C, 1, 2 or Space on the title screen | Campaign (C), vs Computer (1 or Space) or Two Players (2). H opens How to Play. |
 | R | Restart. |
-| P, Esc or the pause button during a match | Pause menu: resume, restart, sound, aim guide, quit. The match also pauses when the tab is hidden, the window loses focus or the rotate-phone prompt covers the table. |
+| P, Esc or the pause button during a match | Pause menu: resume, restart, sound, music, aim guide, quit. The match also pauses when the tab is hidden, the window loses focus or the rotate-phone prompt covers the table. |
 | M | Mute or unmute. |
 | Space on the results screen | Play again. |
 | Esc on the results screen | Return to the title screen. |
@@ -77,15 +87,20 @@ Vite prints a local address to open in a browser. To try it on a phone on the sa
 - If `src/art/table.webp` is missing the game draws a plain table in code, so the build never depends on Blender.
 - Balls, cue, HUD and menus are drawn in code (`src/systems/ballRender.js`, `src/systems/cueArt.js`, `src/ui/theme.js`). The typefaces are Barlow and Barlow Condensed (SIL Open Font Licence), bundled as woff2.
 
+## Sound and music
+
+- Sound effects are recorded files in `src/audio/`, generated with the ElevenLabs sound-effects API by `scripts/make-sfx.ps1` (Windows PowerShell; reads the key from the `ELEVENLABS_API_KEY` user environment variable and spends credits). Ball clicks come in three strengths and are scaled and pitched by impact speed.
+- Any effect whose file is missing falls back to a small built-in synthesiser, so the game never depends on the files.
+- Music: drop a track at `src/audio/music-main.mp3` (any file starting `music`) and rebuild. It loops quietly, pauses with the game, and has its own toggle on the title screen and in the pause menu. There is no track yet.
+
 ## How it works
 
 - The game lays out on a 960x540 logical canvas and renders at twice that size, so text and art stay sharp on phone screens.
 - Physics is Phaser's Matter integration, run at 240 Hz substeps, with constant rolling resistance plus light drag and a top speed cap.
 - A turn only resolves once every ball is at rest, with a frame-counted shot timeout as a safety net so a turn cannot hang.
 - The break adds a tunable scatter kick, because a perfectly modelled rack behaves like a Newton's cradle.
-- The 8-ball rules are a pure module in `src/game/rules.js`, kept separate from rendering so it can be checked in Node.
+- The rules for all three games are a pure module in `src/game/rules.js`, kept separate from rendering so they can be checked in Node. The campaign ladder and its progress logic are in `src/systems/campaign.js`.
 - The computer opponent is a pure planner in `src/game/ai.js`. It scores pots by cut angle, distance, pocket approach and clear paths, falls back to a safety shot, and places the cue ball after fouls so as to set up a pot.
-- Sound is synthesised with the Web Audio API.
 - Spin is applied the frame after the contact that triggers it: follow and draw after the first object-ball contact, side spin on a cushion rebound.
 - Tuning values (`rollingDecel`, `frictionAir`, `maxShotSpeed`, `breakScatter`, `SPIN` and others) live in `src/game/constants.js`.
 - A small `postMessage` bridge in `src/integrations/hub.js` can report ready, score and game-over events to a host page.

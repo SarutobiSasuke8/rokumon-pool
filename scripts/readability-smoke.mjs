@@ -104,7 +104,7 @@ try {
 
     // Start Two Players from the menu button: a tap on the phone, a click on desktop.
     const box = await canvas.boundingBox();
-    const at = { x: box.x + (232 / 960) * box.width, y: box.y + (366 / 540) * box.height };
+    const at = { x: box.x + (232 / 960) * box.width, y: box.y + (432 / 540) * box.height };
     if (options.hasTouch) await page.touchscreen.tap(at.x, at.y);
     else await page.mouse.click(at.x, at.y);
     await page.waitForFunction(() => window.__GAME_DEBUG__?.getScene?.()?.phase === "aim" && window.__GAME_DEBUG__.getScene().mode === "pvp");
@@ -186,7 +186,7 @@ try {
       await page.locator("#rotate").waitFor({ state: "hidden" });
       assert.ok(await page.evaluate(() => window.__GAME_DEBUG__.getScene().scene.isPaused("Game")));
       // Resume is an explicit button on the pause menu.
-      await page.touchscreen.tap(box.x + (480 / 960) * box.width, box.y + (176 / 540) * box.height);
+      await page.touchscreen.tap(box.x + (480 / 960) * box.width, box.y + (146 / 540) * box.height);
       await page.waitForFunction(() => window.__GAME_DEBUG__.getScene().scene.isActive("Game"));
       assert.equal(await page.evaluate(() => window.__GAME_DEBUG__.getScene().shotIndex), shotsBefore + 1);
     }

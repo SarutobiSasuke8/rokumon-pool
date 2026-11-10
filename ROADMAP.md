@@ -52,6 +52,17 @@ Direction decided 2026-11-10: stay top-down in Phaser, with art rendered in Blen
 - [x] Rokumon Games hub media made: hero, cover and screenshots in `art/banners/`.
 - [x] Favicon and share image.
 
+### Milestone 6b: Games, campaign and sound (0.9.0)
+
+- [x] Two shots after a foul (pub rules) with a foul banner and a shots counter.
+- [x] 9-ball.
+- [x] Blackball (reds and yellows).
+- [x] Campaign: ten opponents, trophies, gold for a clean win.
+- [x] Recorded sound effects from ElevenLabs, with the synthesiser as fallback.
+- [x] Music support and toggle.
+- [ ] Music track from Suno (needs Alexei: one download left; drop it at `src/audio/music-main.mp3`).
+- [ ] Listen to the sound effects in play and regenerate any that are wrong (needs Alexei's ears).
+
 ### Milestone 7: Release (1.0.0)
 
 - [ ] Phone playtest on a real device (needs Alexei).
@@ -62,7 +73,9 @@ Direction decided 2026-11-10: stay top-down in Phaser, with art rendered in Blen
 
 ### After 1.0
 
-- 9-ball mode.
+- Speed pool (solo, against the clock) and trick-shot puzzles.
+- Character portraits and venues for the campaign.
+- Snooker, as a separate game on the same engine.
 - Online or pass-the-link multiplayer.
 - Cue and table skins.
 - A 3D version from the same Blender assets.
@@ -74,6 +87,8 @@ Direction decided 2026-11-10: stay top-down in Phaser, with art rendered in Blen
 | 2026-09-06 | Phaser 4 + Matter, top-down | Fast to a playable core; pool physics is planar | A 3D version is started |
 | 2026-10-01 | Repo stays private | Rokumon game repos are private by pattern | Never without Alexei |
 | 2026-11-10 | Stay 2D, art rendered in Blender | Top-down suits a phone; the complaints were art and controls, not the lack of 3D; assets carry over to 3D later | After 1.0 |
+| 2026-11-10 | Two shots after a foul in 8-ball and blackball | Alexei chose pub rules over ball in hand | Phone playtest |
+| 2026-11-10 | Snooker to be its own game | Bigger table, 22 balls, different scoring; cramped inside this layout | When it is started |
 | 2026-11-10 | Aim and power separated | A pull-back drag runs out of room when the cue ball is near a cushion | Phone playtest |
 
 ## Risks
