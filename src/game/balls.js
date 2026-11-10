@@ -19,7 +19,17 @@ export const NUMBER_DISC = 0.54;
 export const BLACKBALL_RED = 0xd42a2a;
 export const BLACKBALL_YELLOW = 0xf2c318;
 
+// Six Coins: six gold coin balls (1-6) and nine deep reds (7-15).
+export const COIN_GOLD = 0xe2aa33;
+export const COIN_RED = 0xa81c1c;
+
 export function ballIdentity(id, skin = "standard") {
+  if (skin === "sixcoins" && id !== "cue") {
+    const number = Number(id);
+    if (!Number.isInteger(number) || number < 1 || number > 15) throw new RangeError(`Unknown ball: ${id}`);
+    const coin = number <= 6;
+    return { id: number, kind: coin ? "gold" : "red", number, color: coin ? COIN_GOLD : COIN_RED, striped: false, numbered: false, metallic: coin, emblem: coin ? "coin" : null, label: coin ? "gold coin" : "red" };
+  }
   if (skin === "blackball" && id !== "cue" && Number(id) !== 8) {
     const number = Number(id);
     if (!Number.isInteger(number) || number < 1 || number > 15) throw new RangeError(`Unknown ball: ${id}`);
@@ -49,7 +59,7 @@ export function ballTextureKey(id, radius, skin = "standard") {
 
 // Which look a variant's balls take.
 export function skinFor(variant) {
-  return variant === "blackball" ? "blackball" : "standard";
+  return variant === "blackball" ? "blackball" : variant === "sixcoins" ? "sixcoins" : "standard";
 }
 
 export function toCss(color) {

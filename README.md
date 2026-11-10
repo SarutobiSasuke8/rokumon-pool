@@ -1,6 +1,6 @@
 # Rokumon Pool
 
-A top-down browser pool game for phones and desktop, with three games (8-ball, 9-ball and blackball) and a ten-opponent campaign. You turn the cue by dragging on the table and shoot with a power bar. Play the campaign, a quick match against the computer, or share the screen with a second player.
+A top-down browser pool game for phones and desktop, with four games (8-ball, 9-ball, blackball and the house game, Six Coins) and a ten-opponent campaign. You turn the cue by dragging on the table and shoot with a power bar. Play the campaign, a quick match against the computer, or share the screen with a second player.
 
 It is part of the Rokumon Games family of small browser games.
 
@@ -10,7 +10,7 @@ There is no betting, wagering, currency or real-money mechanic in this game. It 
 
 ## Status
 
-Version 0.9.0. The game is feature complete for 1.0: three games, a campaign with ten opponents and trophies, separate aim and power controls, cue-ball spin, a table rendered in Blender, rolling balls, recorded sound effects, and full menus and results screens. What stands between this and 1.0 is listed in `ROADMAP.md` under Milestone 7: a playtest on a real phone, feel tuning after it, a music track, the final name and a deploy.
+Version 0.10.0. The game is feature complete for 1.0: four games, a campaign with ten opponents and trophies, separate aim and power controls, cue-ball spin, a table rendered in Blender, rolling balls, recorded sound effects, and full menus and results screens. What stands between this and 1.0 is listed in `ROADMAP.md` under Milestone 7: a playtest on a real phone, feel tuning after it, a music track, the final name and a deploy.
 
 Automated checks cover real mouse and touch input in a phone-sized browser. Nobody has yet played it on a physical phone, and nobody has yet listened to the generated sound effects in play.
 
@@ -42,15 +42,21 @@ Vite prints a local address to open in a browser. To try it on a phone on the sa
 
 - **8-ball.** The first ball you pot decides your group, solids or stripes. Pot one of yours and you shoot again. Clear your group, then pot the 8 to win. Pot the 8 early and you lose; the 8 dropping on the break is respotted.
 - **Blackball.** The same rules with seven reds, seven yellows and the black.
+- **Six Coins.** The house game, named for the six-coin crest. Six gold coin balls sit in the heart of the rack, guarded by nine reds. First to bank four coins wins.
+  - Every visit starts on red. Pot a red and gold is on: your next shot must hit a coin first. Pot it to bank it, and you are back on red.
+  - A coin only counts when gold was on and the shot was legal. Any other coin that drops goes back on the table.
+  - With every red gone, gold is always on.
+  - At three coins each, one coin goes back on the spot and whoever pots it wins.
+  - Fouls give two shots, as in 8-ball.
 - **9-ball.** Nine balls in a diamond. Always hit the lowest numbered ball first. Any ball potted on a legal shot keeps you at the table, and potting the 9 on a legal shot wins at any time.
 
 **Fouls.** A scratch, missing every ball, or hitting the wrong ball first. A banner in the middle of the table says what went wrong and what the other player gets.
 
-- In 8-ball and blackball a foul gives your opponent **two shots**. A pot does not use one up. The cue ball stays where it lies, except after a scratch, when it is placed behind the head string. The shooter's card shows a red "2 SHOTS" chip.
+- In 8-ball, blackball and Six Coins a foul gives your opponent **two shots**. A pot does not use one up. The cue ball stays where it lies, except after a scratch, when it is placed behind the head string. The shooter's card shows a red "2 SHOTS" chip.
 - In 9-ball a foul gives ball in hand anywhere. The 9 going down on a foul is respotted.
 - There is no call-pocket rule.
 
-**Campaign.** A ladder of ten opponents named for the Sanada Ten Braves. Each plays differently (accuracy, shot choice, how hard they hit, how long they think) and some prefer 9-ball or blackball. Beat one to win their trophy and unlock the next. Win without a foul and the trophy is gold. Progress is kept on the device.
+**Campaign.** A ladder of ten opponents named for the Sanada Ten Braves. Each plays differently (accuracy, shot choice, how hard they hit, how long they think) and some prefer 9-ball, blackball or Six Coins. Beat one to win their trophy and unlock the next. Win without a foul and the trophy is gold. Progress is kept on the device.
 
 **Playing a shot.**
 

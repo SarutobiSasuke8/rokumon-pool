@@ -30,7 +30,7 @@ export class MenuScene extends Phaser.Scene {
     rule.lineStyle(1.5, UI.brass, 0.8);
     rule.lineBetween(COL - 140, 158, COL - 96, 158);
     rule.lineBetween(COL + 96, 158, COL + 140, 158);
-    addText(this, COL, 158, "8-BALL · 9-BALL · BLACKBALL", { fontFamily: FONT.display, fontStyle: "600", fontSize: "13px", color: UI.css.dim }).setOrigin(0.5);
+    addText(this, COL, 158, "FOUR GAMES · TEN RIVALS", { fontFamily: FONT.display, fontStyle: "600", fontSize: "13px", color: UI.css.dim }).setOrigin(0.5);
 
     this.difficulty = loadDifficulty();
     this.variant = resolveVariant(loadSettings().variant);
@@ -49,7 +49,8 @@ export class MenuScene extends Phaser.Scene {
     this.chipGfx = this.add.graphics();
 
     // Which game: tap a chip.
-    this.variantChips = VARIANTS.map((key, i) => this.chip(COL + (i - 1) * (CHIP_W + 6), 284, VARIANT_INFO[key].short, () => this.selectVariant(key), key));
+    const gameW = 67;
+    this.variantChips = VARIANTS.map((key, i) => this.chip(COL + (i - (VARIANTS.length - 1) / 2) * (gameW + 4), 284, VARIANT_INFO[key].short, () => this.selectVariant(key), key, gameW));
     this.blurb = addText(this, COL, 308, "", { fontSize: "12px", color: UI.css.dim }).setOrigin(0.5);
 
     addButton(this, COL, 340, 280, 38, "PLAY VS COMPUTER", () => start("ai"), { fontSize: 19 });
@@ -87,10 +88,10 @@ export class MenuScene extends Phaser.Scene {
     this.input.once("pointerdown", () => audio.unlock());
   }
 
-  chip(x, y, label, onPress, key) {
-    const text = addText(this, x, y, label, { fontFamily: FONT.display, fontStyle: "600", fontSize: "14px" }).setOrigin(0.5);
-    this.add.zone(x, y, CHIP_W, 32).setInteractive({ useHandCursor: true }).on("pointerdown", () => { audio.unlock(); audio.ui(); onPress(); });
-    return { key, x, y, label: text };
+  chip(x, y, label, onPress, key, w = CHIP_W) {
+    const text = addText(this, x, y, label, { fontFamily: FONT.display, fontStyle: "600", fontSize: w < CHIP_W ? "12px" : "14px" }).setOrigin(0.5);
+    this.add.zone(x, y, w, 32).setInteractive({ useHandCursor: true }).on("pointerdown", () => { audio.unlock(); audio.ui(); onPress(); });
+    return { key, x, y, w, label: text };
   }
 
   drawBackdrop() {
@@ -127,13 +128,15 @@ export class MenuScene extends Phaser.Scene {
 
   refresh() {
     const g = this.chipGfx.clear();
-    const draw = (chips, current) => chips.forEach(({ key, x, y, label }) => {
+    const draw = (chips, current) => chips.forEach(({ key, x, y, w, label }) => {
       const on = key === current;
-      g.fillStyle(on ? UI.cream : UI.panel, on ? 1 : 0.9);
-      g.fillRoundedRect(x - CHIP_W / 2, y - 14, CHIP_W, 28, 14);
-      g.lineStyle(1, on ? UI.cream : UI.line, 1);
-      g.strokeRoundedRect(x - CHIP_W / 2, y - 14, CHIP_W, 28, 14);
-      label.setColor(on ? UI.css.ink : UI.css.dim);
+      // The house game wears gold.
+      const house = key === "sixcoins";
+      g.fillStyle(on ? (house ? UI.brass : UI.cream) : UI.panel, on ? 1 : 0.9);
+      g.fillRoundedRect(x - w / 2, y - 14, w, 28, 14);
+      g.lineStyle(1, on ? (house ? UI.brass : UI.cream) : house ? UI.brassDark : UI.line, 1);
+      g.strokeRoundedRect(x - w / 2, y - 14, w, 28, 14);
+      label.setColor(on ? UI.css.ink : house ? UI.css.brass : UI.css.dim);
     });
     draw(this.variantChips, this.variant);
     draw(this.chips, this.difficulty);

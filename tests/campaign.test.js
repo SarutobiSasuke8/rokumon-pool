@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CHARACTERS, applyResult, characterById, goldCount, opponentData, trophyCount, unlockedCount } from "../src/systems/campaign.js";
 import { VARIANTS } from "../src/game/state.js";
-import { NINE_RACK, RACK_ORDER, rackFor } from "../src/game/constants.js";
+import { NINE_RACK, RACK_ORDER, SIX_COINS_RACK, rackFor } from "../src/game/constants.js";
 
 const fresh = () => ({ beaten: {} });
 const win = (progress, id, extra = {}) => applyResult(progress, id, { won: true, fouls: 1, shots: 20, ...extra });
@@ -94,6 +94,16 @@ describe("racks", () => {
     expect(NINE_RACK[0]).toEqual([1]);
     expect(NINE_RACK[2][1]).toBe(9);
     expect(NINE_RACK.flat().sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  });
+
+  it("Six Coins racks the six gold balls inside nine reds", () => {
+    expect(rackFor("sixcoins")).toBe(SIX_COINS_RACK);
+    expect(SIX_COINS_RACK.flat().sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+    // No coin on the front ball or on either edge of the triangle.
+    SIX_COINS_RACK.forEach((row) => {
+      expect(row[0]).toBeGreaterThan(6);
+      expect(row[row.length - 1]).toBeGreaterThan(6);
+    });
   });
 
   it("8-ball and blackball share the fifteen-ball triangle", () => {

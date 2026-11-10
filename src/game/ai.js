@@ -1,6 +1,6 @@
 import { projectCuePath } from "./aim.js";
-import { legalFirstTarget, lowestBall } from "./rules.js";
-import { ballKind } from "./state.js";
+import { coinTarget, legalFirstTarget, lowestBall } from "./rules.js";
+import { ballKind, isCoin } from "./state.js";
 
 // Pure computer opponent. Everything is geometry over plain objects so it
 // can be exercised from Node or the debug harness.
@@ -33,6 +33,10 @@ export function legalTargetIds(match, player, balls) {
   if (match.variant === "nineball") {
     const lowest = lowestBall(match);
     return balls.filter((b) => b.id !== "cue" && Number(b.id) === lowest).map((b) => b.id);
+  }
+  if (match.variant === "sixcoins") {
+    const gold = coinTarget(match) === "gold";
+    return balls.filter((b) => b.id !== "cue" && isCoin(b.id) === gold).map((b) => b.id);
   }
   const target = legalFirstTarget(match, player);
   return balls

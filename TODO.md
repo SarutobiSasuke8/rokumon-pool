@@ -47,6 +47,7 @@ Use this file for actionable game project work. Keep items concrete.
 
 ## Done
 
+- 2026-11-10: 0.10.0 (Six Coins, the house game).
 - 2026-11-10: 0.9.0 (two-shot fouls with banner, 9-ball, blackball, campaign, recorded sound effects, music support).
 - 2026-11-10: completion overhaul to 0.8.0 (controls, Blender table, rolling balls, menus, spin, results, banners). See `CHANGELOG.md` and `ROADMAP.md`.
 - 2026-09-06: playable core (table, rack, rules, debug harness).

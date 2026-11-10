@@ -378,7 +378,9 @@ export class UIScene extends Phaser.Scene {
           : panel.group === "stripe" ? { bg: "#cfe6f2", fg: UI.css.ink }
             : { bg: "#2e3a48", fg: "#d5dde6" };
       const blackball = data.variant === "blackball";
-      const tone = blackball && panel.group === "solid" && !panel.onEight ? { bg: "#e0564d", fg: UI.css.ink } : chip;
+      const gold = data.variant === "sixcoins" && panel.active && (data.on === "gold" || data.lastCoin);
+      const red = (blackball && panel.group === "solid" && !panel.onEight) || (data.variant === "sixcoins" && panel.active && !gold);
+      const tone = gold ? { bg: "#e3b458", fg: UI.css.ink } : red ? { bg: "#e0564d", fg: UI.css.ink } : chip;
       card.group.setText(panel.label).setStyle({ backgroundColor: tone.bg, color: tone.fg });
       card.group.setX(card.name.x + card.name.width + 10);
       card.shots.setText("2 SHOTS").setVisible(panel.active && panel.shots > 1);

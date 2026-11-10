@@ -1,4 +1,4 @@
-import { ballKind } from "./state.js";
+import { COINS_TO_WIN, ballKind, isCoin } from "./state.js";
 
 // Pure shot resolution for every variant. Takes the match state as it was
 // when the shot was taken plus what happened during the shot, and returns
@@ -31,7 +31,14 @@ export function lowestBall(match) {
   return match.balls && match.balls.length ? Math.min(...match.balls) : null;
 }
 
+// Six Coins: what is on for the shooter. With no reds left, gold is always on.
+export function coinTarget(match) {
+  if (match.lastCoin || match.reds.length === 0) return "gold";
+  return match.on === "gold" && match.golds.length ? "gold" : "red";
+}
+
 export function legalFirstTarget(match, player) {
+  if (match.variant === "sixcoins") return coinTarget(match);
   if (match.variant === "nineball") return "lowest";
   const suit = match.assigned[player];
   if (!suit) return "open";
@@ -42,6 +49,7 @@ export function legalFirstTarget(match, player) {
 export function isLegalFirstContact(match, player, ballId) {
   if (ballId == null) return false;
   if (match.variant === "nineball") return Number(ballId) === lowestBall(match);
+  if (match.variant === "sixcoins") return isCoin(ballId) === (coinTarget(match) === "gold");
   const target = legalFirstTarget(match, player);
   const kind = ballKind(ballId);
   if (target === "open") return kind !== "eight";
@@ -57,7 +65,93 @@ function describeBall(match, id) {
 }
 
 export function resolveShot(match, shot = {}) {
-  return match.variant === "nineball" ? resolveNineBall(match, shot) : resolveEightBall(match, shot);
+  if (match.variant === "nineball") return resolveNineBall(match, shot);
+  if (match.variant === "sixcoins") return resolveSixCoins(match, shot);
+  return resolveEightBall(match, shot);
+}
+
+// Six Coins. Six gold coin balls and nine reds; first to four coins wins.
+//   - A visit starts on red. Pot a red and gold is on: the next shot must hit
+//     a coin first. Pot the coin to bank it, and you are back on red.
+//   - A coin only counts when gold was on and the shot was legal. Any other
+//     coin that drops is put back on the table.
+//   - A foul (scratch, no ball hit, wrong ball first) gives the opponent two
+//     shots; the cue ball goes behind the line after a scratch.
+//   - With every red gone, gold is always on.
+//   - At three coins each, one coin goes back on the spot and decides it.
+function resolveSixCoins(match, { pocketed = [], firstContact = null } = {}) {
+  const next = JSON.parse(JSON.stringify(match));
+  const player = next.turn;
+  const other = player === 1 ? 2 : 1;
+  const shotsBefore = match.shots ?? 1;
+  const target = coinTarget(match);
+  const scratched = pocketed.includes("cue");
+  const balls = pocketed.filter((id) => id !== "cue");
+  const coinsDown = balls.filter((id) => isCoin(id));
+  const redsDown = balls.filter((id) => !isCoin(id));
+
+  let foulReason = null;
+  if (scratched) foulReason = "scratch";
+  else if (firstContact == null) foulReason = "no ball hit";
+  else if (isCoin(firstContact) !== (target === "gold")) foulReason = target === "gold" ? "hit a red first, gold was on" : "hit a coin first, red was on";
+
+  next.reds = next.reds.filter((n) => !redsDown.includes(n));
+  const earned = !foulReason && target === "gold" ? coinsDown : [];
+  const respot = coinsDown.filter((id) => !earned.includes(id));
+  next.golds = next.golds.filter((n) => !earned.includes(n));
+  next.coins[player] += earned.length;
+
+  const done = (extra) => ({ match: next, winner: null, foulReason, placement: "none", ballInHand: false, shots: next.shots, continueTurn: false, respot, respotEight: false, message: "", ...extra });
+  const back = respot.length ? ` ${respot.length > 1 ? "The coins go" : "The coin goes"} back on the table.` : "";
+
+  if (next.coins[player] >= COINS_TO_WIN || (match.lastCoin && earned.length)) {
+    next.gameOver = true;
+    next.winner = player;
+    next.shots = 1;
+    return done({ winner: player, respot: [], message: match.lastCoin ? `Player ${player} potted the last coin!` : `Player ${player} banked ${COINS_TO_WIN} coins!` });
+  }
+
+  // Level at three each with every coin banked: one goes back to decide it.
+  let decider = "";
+  if (!next.lastCoin && next.golds.length === 0 && respot.length === 0) {
+    next.lastCoin = true;
+    next.golds = [earned[earned.length - 1]];
+    respot.push(next.golds[0]);
+    decider = " Three coins each: the last coin decides it.";
+  }
+
+  let message = "";
+  let placement = "none";
+  let continueTurn = false;
+  if (foulReason) {
+    next.turn = other;
+    next.shots = 2;
+    next.on = "red";
+    placement = scratched ? "kitchen" : "none";
+    message = `Foul: ${foulReason}. Player ${other} has two shots${scratched ? ", cue ball behind the line" : ""}.${back}`;
+  } else if (earned.length) {
+    continueTurn = true;
+    next.shots = shotsBefore;
+    next.on = "red";
+    const tally = `${next.coins[player]} of ${COINS_TO_WIN}`;
+    message = `Player ${player} banks ${earned.length > 1 ? `${earned.length} coins` : "a coin"}: ${tally}.${decider}`;
+  } else if (target === "red" && redsDown.length) {
+    continueTurn = true;
+    next.shots = shotsBefore;
+    next.on = "gold";
+    message = `Player ${player} pots a red. Gold is on.${back}`;
+  } else if (shotsBefore > 1) {
+    next.shots = shotsBefore - 1;
+    message = `Player ${player} has one shot left.${back}`;
+  } else {
+    next.turn = other;
+    next.shots = 1;
+    next.on = "red";
+    message = back.trim();
+  }
+  if (decider && !earned.length) message = `${message}${decider}`.trim();
+
+  return done({ placement, ballInHand: placement !== "none", shots: next.shots, continueTurn, respot, message });
 }
 
 // 8-ball and blackball, pub rules: a foul gives the opponent two shots. The

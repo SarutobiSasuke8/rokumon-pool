@@ -4,6 +4,21 @@ All notable changes to this project should be documented here.
 
 ## Unreleased
 
+### 2026-11-10 Six Coins (0.10.0)
+
+Added
+
+- Six Coins, an original house game. Six gold coin balls and nine reds; first to bank four coins wins. A visit starts on red; potting a red puts gold on; potting a coin banks it and puts red back on. A coin potted out of turn or on a foul goes back on the table. With no reds left gold is always on, and at three coins each one coin is respotted to decide it. Fouls give two shots.
+- Gold coin balls: a metallic look with a ring at each pole, after the coins of the crest. Reds are plain.
+- HUD for the game: four coin slots per player and a chip that says RED FIRST, GOLD IS ON or LAST COIN.
+- The computer plays it, and two campaign opponents now do: Unno Rokuro (4) and Sarutobi Sasuke (10).
+- How to Play is now six cards: aim, power and spin, fouls, and one card per game.
+- Tests: ten Six Coins rules checks (46 in all) and a rack test.
+
+Not done
+
+- Nobody has played Six Coins by hand; the balance (four coins, red before every coin) is a first design.
+
 ### 2026-11-10 games, campaign and sound (0.9.0)
 
 Changed

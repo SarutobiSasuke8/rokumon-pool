@@ -1,7 +1,7 @@
 // Node check for the pure rules (8-ball, blackball, 9-ball). Run with: node scripts/test-rules.mjs
 import assert from "node:assert/strict";
 import { createMatchState } from "../src/game/state.js";
-import { resolveShot, legalFirstTarget, lowestBall, isLegalFirstContact } from "../src/game/rules.js";
+import { resolveShot, legalFirstTarget, lowestBall, isLegalFirstContact, coinTarget } from "../src/game/rules.js";
 
 const fresh = () => createMatchState();
 const withSuits = (p1 = "solid") => {
@@ -330,6 +330,116 @@ test("9-ball: a miss with no foul passes the turn", () => {
   assert.equal(r.foulReason, null);
   assert.equal(r.match.turn, 2);
   assert.equal(r.ballInHand, false);
+});
+
+// ---- Six Coins ---------------------------------------------------------------
+
+const six = () => createMatchState("sixcoins");
+const RED = 7;
+const COIN = 1;
+
+test("six coins: a visit starts on red, and hitting a coin first is a foul", () => {
+  assert.equal(coinTarget(six()), "red");
+  assert.equal(isLegalFirstContact(six(), 1, RED), true);
+  assert.equal(isLegalFirstContact(six(), 1, COIN), false);
+  const r = resolveShot(six(), { pocketed: [], firstContact: COIN });
+  assert.match(r.foulReason, /hit a coin first, red was on/);
+  assert.equal(r.match.turn, 2);
+  assert.equal(r.match.shots, 2);
+});
+
+test("six coins: potting a red puts gold on and keeps the turn", () => {
+  const r = resolveShot(six(), { pocketed: [RED], firstContact: RED });
+  assert.equal(r.continueTurn, true);
+  assert.equal(r.match.turn, 1);
+  assert.equal(r.match.on, "gold");
+  assert.equal(r.message, "Player 1 pots a red. Gold is on.");
+  assert.equal(isLegalFirstContact(r.match, 1, COIN), true);
+  assert.equal(isLegalFirstContact(r.match, 1, 8), false);
+});
+
+test("six coins: a coin potted with gold on is banked, then it is back to red", () => {
+  const onGold = resolveShot(six(), { pocketed: [RED], firstContact: RED }).match;
+  const r = resolveShot(onGold, { pocketed: [COIN], firstContact: COIN });
+  assert.equal(r.match.coins[1], 1);
+  assert.equal(r.match.on, "red");
+  assert.equal(r.match.turn, 1);
+  assert.deepEqual(r.respot, []);
+  assert.ok(!r.match.golds.includes(COIN));
+  assert.equal(r.message, "Player 1 banks a coin: 1 of 4.");
+});
+
+test("six coins: a coin that drops while red is on goes back, with no foul", () => {
+  const r = resolveShot(six(), { pocketed: [RED, COIN], firstContact: RED });
+  assert.equal(r.foulReason, null);
+  assert.deepEqual(r.respot, [COIN]);
+  assert.equal(r.match.coins[1], 0);
+  assert.ok(r.match.golds.includes(COIN));
+  assert.equal(r.match.on, "gold", "the red still earns the shot at gold");
+});
+
+test("six coins: a coin potted on a foul goes back and gives two shots", () => {
+  const onGold = resolveShot(six(), { pocketed: [RED], firstContact: RED }).match;
+  const r = resolveShot(onGold, { pocketed: [COIN, "cue"], firstContact: COIN });
+  assert.equal(r.foulReason, "scratch");
+  assert.deepEqual(r.respot, [COIN]);
+  assert.equal(r.match.coins[1], 0);
+  assert.equal(r.match.turn, 2);
+  assert.equal(r.match.shots, 2);
+  assert.equal(r.placement, "kitchen");
+  assert.equal(r.match.on, "red");
+});
+
+test("six coins: missing the coin ends the visit and the next player starts on red", () => {
+  const onGold = resolveShot(six(), { pocketed: [RED], firstContact: RED }).match;
+  const r = resolveShot(onGold, { pocketed: [], firstContact: COIN });
+  assert.equal(r.foulReason, null);
+  assert.equal(r.match.turn, 2);
+  assert.equal(r.match.on, "red");
+});
+
+test("six coins: the fourth coin wins", () => {
+  const m = six();
+  m.coins = { 1: 3, 2: 1 };
+  m.golds = [5, 6];
+  m.on = "gold";
+  const r = resolveShot(m, { pocketed: [5], firstContact: 5 });
+  assert.equal(r.winner, 1);
+  assert.equal(r.match.gameOver, true);
+  assert.equal(r.message, "Player 1 banked 4 coins!");
+});
+
+test("six coins: three each puts one coin back to decide it, and potting it wins", () => {
+  const m = six();
+  m.coins = { 1: 2, 2: 3 };
+  m.golds = [6];
+  m.on = "gold";
+  const level = resolveShot(m, { pocketed: [6], firstContact: 6 });
+  assert.equal(level.winner, null);
+  assert.equal(level.match.lastCoin, true);
+  assert.deepEqual(level.respot, [6]);
+  assert.deepEqual(level.match.golds, [6]);
+  assert.match(level.message, /Three coins each: the last coin decides it\./);
+  assert.equal(coinTarget(level.match), "gold", "no red is needed for the last coin");
+  const end = resolveShot(level.match, { pocketed: [6], firstContact: 6 });
+  assert.equal(end.winner, 1);
+  assert.equal(end.message, "Player 1 potted the last coin!");
+});
+
+test("six coins: with no reds left, gold is always on", () => {
+  const m = six();
+  m.reds = [];
+  assert.equal(coinTarget(m), "gold");
+  const r = resolveShot(m, { pocketed: [COIN], firstContact: COIN });
+  assert.equal(r.match.coins[1], 1);
+});
+
+test("six coins: two shots carry as in 8-ball", () => {
+  const fouled = resolveShot(six(), { pocketed: [], firstContact: null }).match;
+  assert.equal(fouled.shots, 2);
+  const miss = resolveShot(fouled, { pocketed: [], firstContact: RED });
+  assert.equal(miss.match.turn, 2);
+  assert.equal(miss.match.shots, 1);
 });
 
 console.log(`\n${passed} rules checks passed`);

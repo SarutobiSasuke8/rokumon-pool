@@ -38,6 +38,9 @@ test("rules messages read naturally for You", () => {
   assert.equal(withNames("Player 1 has one shot left.", AI_NAMES), "You have one shot left.");
   assert.equal(withNames("Player 1 pots and still has two shots.", AI_NAMES), "You pot and still have two shots.");
   assert.equal(withNames("Player 1 potted the 9-ball!", AI_NAMES), "You potted the 9-ball!");
+  assert.equal(withNames("Player 1 pots a red. Gold is on.", AI_NAMES), "You pot a red. Gold is on.");
+  assert.equal(withNames("Player 1 banks a coin: 2 of 4.", AI_NAMES), "You bank a coin: 2 of 4.");
+  assert.equal(withNames("Player 2 banks a coin: 2 of 4.", AI_NAMES), "Computer banks a coin: 2 of 4.");
   assert.equal(withNames("Player 2 pocketed the 8-ball early. Player 1 wins!", AI_NAMES), "Computer pocketed the 8-ball early. You win!");
   assert.equal(withNames("Player 1 pocketed the 8-ball early. Player 2 wins!", AI_NAMES), "You pocketed the 8-ball early. Computer wins!");
   assert.equal(withNames("Player 1 cleared the table and sank the 8-ball!", AI_NAMES), "You cleared the table and sank the 8-ball!");

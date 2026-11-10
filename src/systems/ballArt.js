@@ -49,6 +49,14 @@ export function paintBall(ctx, id, radius, scale = ART_SCALE, skin = "standard")
   ctx.fillStyle = shade;
   ctx.fill();
 
+  if (ball.emblem === "coin") {
+    // The mon: a ring, as on the six-coin crest.
+    circle(ctx, R * 0.42);
+    ctx.lineWidth = R * 0.2;
+    ctx.strokeStyle = "rgba(92, 58, 8, 0.85)";
+    ctx.stroke();
+  }
+
   if (ball.numbered) {
     circle(ctx, R * NUMBER_DISC);
     ctx.fillStyle = WHITE;
