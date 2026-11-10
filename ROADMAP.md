@@ -68,9 +68,10 @@ Direction decided 2026-11-10: stay top-down in Phaser, with art rendered in Blen
 - [ ] Phone playtest on a real device (needs Alexei).
 - [ ] Feel tuning after the playtest (needs Alexei's judgement).
 - [ ] Final name confirmed (needs Alexei).
-- [ ] Deploy to a shareable URL (needs `wrangler login`; the repo stays private).
+- [x] Deployed to a shareable URL: rokumongames.com/play/pool (unlisted while in preview).
 - [x] Bundle, media and manifest prepared for the Rokumon Games hub: local branch `ship/pool-0.9.0` in `C:/Dev/Projects/_wt/hub-ship-pool`, hub slug `pool`.
-- [ ] Push that hub branch and merge it (needs Alexei: merging deploys to rokumongames.com).
+- [x] Hub branch merged and deployed 2026-11-10 (SarutobiSasuke8/rokumon-games#68). Live as an unlisted preview at rokumongames.com/game/pool.
+- [ ] Promote from preview to public in the hub manifest (needs Alexei: his playtest is the sign-off; it is a one-line change to `publication.status`).
 
 ### After 1.0
 
