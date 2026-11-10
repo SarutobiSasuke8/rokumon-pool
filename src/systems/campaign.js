@@ -52,6 +52,11 @@ export function opponentData(character) {
   return { id: character.id, name: character.name, tuning: character.tuning };
 }
 
+// Quick matches borrow a character's identity, not their campaign tuning.
+export function randomRival(random = Math.random) {
+  return CHARACTERS[Math.floor(random() * CHARACTERS.length)].id;
+}
+
 function blank() {
   return { beaten: {} };
 }

@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import { TABLE, BALL, PHYSICS, INPUT, COLORS, AI_DIFFICULTY, POWER_BAR, PLAY_ZONE, SPIN, rackFor, resolveDifficulty } from "../game/constants.js";
 import { createMatchState, pottedCount, resolveVariant, snapshotMatch } from "../game/state.js";
 import { skinFor } from "../game/balls.js";
-import { recordCampaignResult } from "../systems/campaign.js";
+import { characterById, randomRival, recordCampaignResult } from "../systems/campaign.js";
 import { resolveShot, isLegalFirstContact } from "../game/rules.js";
 import { withNames as formatNames } from "../game/labels.js";
 import { projectCuePath } from "../game/aim.js";
@@ -47,9 +47,11 @@ export class GameScene extends Phaser.Scene {
     this.mode = data?.mode === "ai" ? "ai" : "pvp";
     this.difficulty = resolveDifficulty(data?.difficulty);
     this.variant = resolveVariant(data?.variant);
+    this.skipRulesPrompt = data?.skipRulesPrompt === true;
     // A campaign opponent: a named character with their own way of playing.
     this.opponent = this.mode === "ai" && data?.opponent ? data.opponent : null;
-    this.names = this.mode === "ai" ? { 1: "You", 2: this.opponent ? this.opponent.name : "Computer" } : { 1: "Player 1", 2: "Player 2" };
+    this.rival = this.mode === "ai" && !this.opponent ? characterById(data?.rivalId) || characterById(randomRival()) : null;
+    this.names = this.mode === "ai" ? { 1: "You", 2: this.opponent?.name ?? this.rival.name } : { 1: "Player 1", 2: "Player 2" };
   }
 
   create() {
@@ -158,7 +160,12 @@ export class GameScene extends Phaser.Scene {
   restartData() {
     const base = { mode: this.mode, variant: this.variant };
     if (this.mode !== "ai") return base;
-    return this.opponent ? { ...base, opponent: this.opponent } : { ...base, difficulty: this.difficulty };
+    return this.opponent ? { ...base, opponent: this.opponent } : { ...base, difficulty: this.difficulty, rivalId: this.rival.id };
+  }
+
+  restartMatch() {
+    this.scene.stop("UI");
+    this.scene.restart({ ...this.restartData(), skipRulesPrompt: true });
   }
 
   // Called from update() while it is the computer's turn. Placement is
@@ -225,7 +232,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     if (this.restartKey.restartPressed()) {
-      this.scene.restart(this.restartData());
+      this.restartMatch();
       return;
     }
 
@@ -1105,6 +1112,7 @@ export class GameScene extends Phaser.Scene {
       aiTurn: this.isAiTurn(),
       difficultyLabel: this.mode === "ai" && !this.opponent ? AI_DIFFICULTY[this.difficulty].label : null,
       names: { ...this.names },
+      rivalId: this.opponent?.id ?? this.rival?.id ?? null,
       // The turn and group are on the HUD cards; an empty message shows the
       // controls hint instead of repeating them.
       message: this.withNames(message || ""),

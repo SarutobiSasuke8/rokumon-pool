@@ -9,7 +9,8 @@ export class BootScene extends Phaser.Scene {
   preload() {
     Object.entries(ART).forEach(([path, url]) => {
       const key = path.split("/").pop().replace(/\.[a-z]+$/, "");
-      this.load.image(key, url);
+      if (key === "braves") this.load.spritesheet(key, url, { frameWidth: 224, frameHeight: 224 });
+      else this.load.image(key, url);
     });
   }
   create() { this.scene.start("Menu"); }

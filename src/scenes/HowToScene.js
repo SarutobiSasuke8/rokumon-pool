@@ -1,4 +1,6 @@
 import Phaser from "phaser";
+import { guideCard } from "../game/ruleGuide.js";
+import { VARIANTS } from "../game/state.js";
 import { FONT, UI, VIEW, addButton, addText, addTitle, setupCamera } from "../ui/theme.js";
 
 // Six cards in two rows of three: the controls, then one card per game.
@@ -19,39 +21,7 @@ const CARDS = [
       "Tap SPIN, then touch where the cue strikes: high follows, low draws back.",
     ],
   },
-  {
-    title: "FOULS",
-    lines: [
-      "A scratch, missing every ball, or hitting the wrong ball first.",
-      "Your opponent gets TWO SHOTS. A pot does not use one up.",
-      "After a scratch the cue ball goes behind the line.",
-    ],
-  },
-  {
-    title: "8-BALL AND BLACKBALL",
-    lines: [
-      "Your first pot decides your group. Pot yours to shoot again.",
-      "Clear your group, then pot the 8 (the black) to win.",
-      "Pot it early and you lose.",
-    ],
-  },
-  {
-    title: "9-BALL",
-    lines: [
-      "Hit the lowest numbered ball first.",
-      "Pot any ball on a legal shot to shoot again.",
-      "Pot the 9 at any time to win. A foul gives ball in hand.",
-    ],
-  },
-  {
-    title: "SIX COINS",
-    gold: true,
-    lines: [
-      "Six gold coins, nine reds. First to four coins wins.",
-      "Pot a red and gold is on: pot a coin to bank it, then back to red.",
-      "A coin potted out of turn goes back. At three each, one coin decides it.",
-    ],
-  },
+  ...VARIANTS.map(guideCard),
 ];
 
 const W = 288;

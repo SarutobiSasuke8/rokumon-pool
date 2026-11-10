@@ -104,10 +104,35 @@ try {
 
     // Start Two Players from the menu button: a tap on the phone, a click on desktop.
     const box = await canvas.boundingBox();
-    const at = { x: box.x + (232 / 960) * box.width, y: box.y + (432 / 540) * box.height };
-    if (options.hasTouch) await page.touchscreen.tap(at.x, at.y);
-    else await page.mouse.click(at.x, at.y);
+    const click = async (x, y) => {
+      const screenX = box.x + (x / 960) * box.width;
+      const screenY = box.y + (y / 540) * box.height;
+      if (options.hasTouch) await page.touchscreen.tap(screenX, screenY);
+      else await page.mouse.click(screenX, screenY);
+      // Phaser applies queued scene changes and registers new hit areas on its next frame.
+      await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+    };
+    await click(232, 432);
     await page.waitForFunction(() => window.__GAME_DEBUG__?.getScene?.()?.phase === "aim" && window.__GAME_DEBUG__.getScene().mode === "pvp");
+    await page.waitForFunction(() => window.__GAME_DEBUG__.getScene().scene.isPaused("Game"));
+    await page.screenshot({ path: `tests/evidence/rules-prompt-${name}.png` });
+    await click(480, 278); // Don't ask again.
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("rokumon-pool:settings")).hideRulesPrompt), true);
+    await click(377, 370); // View rules.
+    const shown = (str) => page.waitForFunction((text) =>
+      window.__GAME_DEBUG__.getScene().scene.get("UI").children.list.some((o) =>
+        o.visible && o.list?.some((child) => child.text === text)), str);
+    await shown("Clear your group, then pot the 8.");
+    await click(414, 141);
+    await shown("Pot the 9 on a legal shot to win.");
+    await click(546, 141);
+    await shown("Clear your colour, then pot the black.");
+    await click(678, 141);
+    await shown("Bank 4 gold coins to win.");
+    await page.screenshot({ path: `tests/evidence/match-rules-${name}.png` });
+    assert.equal(await page.evaluate(() => window.__GAME_DEBUG__.getScene().shotIndex), 0);
+    await click(480, 476); // Start match.
+    await page.waitForFunction(() => window.__GAME_DEBUG__.getScene().scene.isActive("Game"));
 
     const textures = await page.evaluate(inspectTextures);
     for (const t of textures) {
@@ -186,9 +211,60 @@ try {
       await page.locator("#rotate").waitFor({ state: "hidden" });
       assert.ok(await page.evaluate(() => window.__GAME_DEBUG__.getScene().scene.isPaused("Game")));
       // Resume is an explicit button on the pause menu.
-      await page.touchscreen.tap(box.x + (480 / 960) * box.width, box.y + (146 / 540) * box.height);
+      await click(480, 160);
       await page.waitForFunction(() => window.__GAME_DEBUG__.getScene().scene.isActive("Game"));
       assert.equal(await page.evaluate(() => window.__GAME_DEBUG__.getScene().shotIndex), shotsBefore + 1);
+    }
+
+    if (!options.hasTouch) {
+      await page.reload();
+      await page.waitForFunction(() => document.body.dataset.screen === "menu");
+      await click(232, 340); // Play vs Computer.
+      await page.waitForFunction(() => window.__GAME_DEBUG__?.getScene().scene.isActive("UI"));
+      const rival = () => page.evaluate(() => {
+        const game = window.__GAME_DEBUG__.getScene();
+        const ui = game.scene.get("UI");
+        const portrait = ui.cards[1].portrait;
+        return { id: game.rival.id, frame: portrait.frame.name, name: game.names[2], overlay: ui.overlayMode };
+      });
+      const firstRival = await rival();
+      assert.notEqual(firstRival.name, "Computer");
+      assert.equal(firstRival.overlay, null, "the rules opt-out survives reload");
+      await page.screenshot({ path: "tests/evidence/pool-quick-match.png" });
+      await click(480, 20);
+      await page.screenshot({ path: "tests/evidence/pool-pause.png" });
+      await click(480, 203); // Match Rules is always available from pause.
+      await shown("Clear your group, then pot the 8.");
+      await click(480, 476); // Back to pause.
+      await page.waitForFunction(() => window.__GAME_DEBUG__.getScene().scene.get("UI").overlayMode === "pause");
+      await click(480, 246); // Restart Match.
+      await page.waitForFunction(() => window.__GAME_DEBUG__.getScene().scene.isActive("Game")
+        && window.__GAME_DEBUG__.getScene().scene.isActive("UI"), null, { timeout: 5000 });
+      assert.deepEqual(await rival(), firstRival, "restarting keeps the same quick-match rival");
+      await click(480, 20);
+      await page.waitForFunction(() => window.__GAME_DEBUG__.getScene().scene.get("UI").overlayMode === "pause", null, { timeout: 5000 });
+      await click(480, 418); // Quit.
+      await page.waitForFunction(() => document.body.dataset.screen === "menu");
+      assert.equal(await page.evaluate(() => localStorage.getItem("rokumon-pool:campaign")), null, "quick play leaves the ladder alone");
+      await click(232, 200); // Campaign.
+      await page.waitForFunction(() => document.body.dataset.screen === "campaign");
+      const art = (scene, key) => page.evaluate(({ scene, key }) =>
+        window.__GAME_DEBUG__.getScene().scene.get(scene).children.list
+          .filter((o) => o.texture?.key === key).map((o) => o.frame.name), { scene, key });
+      assert.equal(new Set(await art("Campaign", "braves")).size, 10);
+      await page.screenshot({ path: "tests/evidence/pool-campaign.png" });
+      await click(826, 476); // Challenge Anayama.
+      await page.waitForFunction(() => window.__GAME_DEBUG__.getScene().opponent?.id === "anayama"
+        && window.__GAME_DEBUG__.getScene().scene.isActive("UI"));
+      assert.deepEqual((await art("UI", "braves")).map(String), ["0"]);
+      await page.evaluate(() => window.__GAME_DEBUG__.getScene().endGame(1, "Test campaign win"));
+      await page.waitForFunction(() => document.body.dataset.screen === "gameover");
+      assert.equal((await art("GameOver", "trophy-gold")).length, 1);
+      await page.waitForTimeout(450);
+      await page.screenshot({ path: "tests/evidence/pool-trophy.png" });
+      await click(642, 462); // Ladder.
+      await page.waitForFunction(() => document.body.dataset.screen === "campaign");
+      assert.equal((await art("Campaign", "trophy-gold")).length, 1);
     }
     assert.deepEqual(errors, [], `${name}: no page errors`);
     console.log(`ok - ${name}: 16 ball textures, groups ${assigned[1]}/${assigned[2]}, tray ${state.tray.length}, ${options.hasTouch ? "touch" : "mouse"} power pull shoots`);

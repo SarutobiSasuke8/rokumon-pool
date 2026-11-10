@@ -3,7 +3,7 @@ import { AI_DIFFICULTY, resolveDifficulty } from "../game/constants.js";
 import { VARIANT_INFO, resolveVariant } from "../game/state.js";
 import { audio } from "../systems/audio.js";
 import { CHARACTERS, characterById, opponentData } from "../systems/campaign.js";
-import { drawTrophy } from "./CampaignScene.js";
+import { addTrophy } from "../ui/collectibles.js";
 import { FONT, UI, VIEW, addButton, addText, addTitle, drawRokumon, setupCamera } from "../ui/theme.js";
 
 function clock(ms) {
@@ -23,6 +23,7 @@ export class GameOverScene extends Phaser.Scene {
     this.variant = resolveVariant(data?.variant);
     this.difficulty = resolveDifficulty(data?.difficulty);
     this.opponent = data?.opponent ?? null;
+    this.rivalId = data?.rivalId ?? null;
     this.names = data?.names ?? { 1: "Player 1", 2: "Player 2" };
     this.stats = data?.stats ?? null;
     this.durationMs = data?.durationMs ?? 0;
@@ -51,11 +52,11 @@ export class GameOverScene extends Phaser.Scene {
     addText(this, 480, 150, this.message, { fontSize: "14px", color: UI.css.sky, align: "center", wordWrap: { width: 400 } }).setOrigin(0.5);
 
     if (this.stats) this.drawStats(g);
-    this.drawFooter(g);
+    this.drawFooter();
 
     const restart = () => {
       const base = { mode: this.mode, variant: this.variant };
-      this.scene.start("Game", this.mode !== "ai" ? base : this.opponent ? { ...base, opponent: this.opponent } : { ...base, difficulty: this.difficulty });
+      this.scene.start("Game", this.mode !== "ai" ? base : this.opponent ? { ...base, opponent: this.opponent } : { ...base, difficulty: this.difficulty, rivalId: this.rivalId });
     };
     const leave = () => this.scene.start(this.opponent ? "Campaign" : "Menu");
     const next = this.campaign?.nextId ? characterById(this.campaign.nextId) : null;
@@ -98,12 +99,11 @@ export class GameOverScene extends Phaser.Scene {
 
   // Below the figures: the trophy for a campaign match, the record for a
   // quick match against the computer.
-  drawFooter(g) {
+  drawFooter() {
     const time = `${VARIANT_INFO[this.variant].label}  ·  Match time ${clock(this.durationMs)}`;
     const c = this.campaign;
     if (c && c.won) {
-      const colour = c.gold ? 0xf2c33d : 0xb9773a;
-      drawTrophy(g, 318, 386, 34, colour);
+      addTrophy(this, 315, 389, 62, c.gold);
       const kind = c.gold ? "GOLD" : "BRONZE";
       addTitle(this, 352, 376, `${kind} TROPHY: ${String(c.trophy).toUpperCase()}`, { fontSize: "20px", color: c.gold ? "#f2c33d" : "#d99a5b" }).setOrigin(0, 0.5);
       const note = c.completed ? `All ${CHARACTERS.length} braves beaten. The ladder is yours.`
