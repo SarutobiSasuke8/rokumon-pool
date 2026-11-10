@@ -4,7 +4,8 @@
 // falls back to a tiny built-in synth, so the game is never silent and never
 // depends on the files. Music is any src/audio/music-*.mp3, looped quietly.
 
-const FILES = import.meta.glob ? import.meta.glob("../audio/*.{mp3,ogg,wav}", { eager: true, query: "?url", import: "default" }) : {};
+// Vite replaces this call at build time; the folder always exists, so no guard.
+const FILES = import.meta.glob("../audio/*.{mp3,ogg,wav}", { eager: true, query: "?url", import: "default" });
 const URLS = {};
 Object.entries(FILES).forEach(([path, url]) => { URLS[path.split("/").pop().replace(/\.[a-z0-9]+$/, "")] = url; });
 const MUSIC_URL = Object.entries(URLS).find(([name]) => name.startsWith("music"))?.[1] || null;

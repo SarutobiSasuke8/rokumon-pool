@@ -97,7 +97,8 @@ Vite prints a local address to open in a browser. To try it on a phone on the sa
 
 - Sound effects are recorded files in `src/audio/`, generated with the ElevenLabs sound-effects API by `scripts/make-sfx.ps1` (Windows PowerShell; reads the key from the `ELEVENLABS_API_KEY` user environment variable and spends credits). Ball clicks come in three strengths and are scaled and pitched by impact speed.
 - Any effect whose file is missing falls back to a small built-in synthesiser, so the game never depends on the files.
-- Music: drop a track at `src/audio/music-main.mp3` (any file starting `music`) and rebuild. It loops quietly, pauses with the game, and has its own toggle on the title screen and in the pause menu. There is no track yet.
+- Charge-up: pulling the power handle plays a live synthesised tone that rises in pitch and loudness with the pull, with a tick at each quarter. It is generated rather than recorded so it can follow the handle (`chargeStart`, `chargeSet` and `chargeStop` in `src/systems/audio.js`).
+- Music: `src/audio/music-main.mp3`, "Smoky Lounge", made with Suno on a Pro plan (commercial use allowed) from a jazz-lounge pool-hall prompt, trimmed and faded for looping (3:32, about 4.6 MB). Any file starting `music` in `src/audio/` is picked up. It loops quietly, pauses with the game, and has its own toggle on the title screen and in the pause menu.
 
 ## How it works
 

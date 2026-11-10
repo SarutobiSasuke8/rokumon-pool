@@ -60,7 +60,9 @@ Direction decided 2026-11-10: stay top-down in Phaser, with art rendered in Blen
 - [x] Campaign: ten opponents, trophies, gold for a clean win.
 - [x] Recorded sound effects from ElevenLabs, with the synthesiser as fallback.
 - [x] Music support and toggle.
-- [ ] Music track from Suno (needs Alexei: one download left; drop it at `src/audio/music-main.mp3`).
+- [x] Music track from Suno: "Smoky Lounge" (take 2, chosen by Alexei) at `src/audio/music-main.mp3`.
+- [x] Charge-up sound on the power gauge.
+- [x] Fixed the audio loader so the recorded effects actually play.
 - [ ] Listen to the sound effects in play and regenerate any that are wrong (needs Alexei's ears).
 
 ### Milestone 6c: Six Coins (0.10.0)
