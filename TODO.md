@@ -41,7 +41,7 @@ Use this file for actionable game project work. Keep items concrete.
 - [ ] #task Deploy: make the repo public and run the Pages workflow, or `wrangler login` and deploy `dist/` to Cloudflare Pages. Then a phone playtest.
 - [ ] #task Play the live preview at rokumongames.com/play/pool on a phone for 5 to 10 minutes, then promote it to public in the hub manifest (`publication.status`).
 - [ ] #task Tune `SPIN` in `src/game/constants.js` by hand after the phone playtest.
-- [ ] #task Add the Suno track as `src/audio/music-main.mp3` and rebuild.
+- [x] #task Add the Suno track as `src/audio/music-main.mp3` and rebuild (2026-11-10, take 2).
 - [ ] #task Listen to every effect in `src/audio/` in play; regenerate any that are wrong with `scripts/make-sfx.ps1 -Force -Only <name>`.
 - [ ] #task Teach the computer to avoid shots that risk the 8 (or the black) going down early.
 
