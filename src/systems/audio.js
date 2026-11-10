@@ -144,7 +144,83 @@ function syncMusic() {
   else music.pause();
 }
 
+// Charge-up: a live tone that follows the power gauge. It is built from two
+// detuned oscillators, so it has body, and a little filtered noise that opens
+// up with power, like a spring being wound. Pitch and loudness rise together
+// with the pull; a soft tick marks each quarter of the bar. It is generated,
+// not recorded, because a recorded clip cannot follow a handle the player is
+// moving by hand.
+let charge = null;
+let chargeTick = -1;
+
+function chargeStart() {
+  const c = ensure();
+  if (!c || muted || charge) return;
+  const t = c.currentTime;
+  const out = c.createGain();
+  out.gain.setValueAtTime(0.0001, t);
+  const lowpass = c.createBiquadFilter();
+  lowpass.type = "lowpass";
+  lowpass.frequency.value = 500;
+  lowpass.Q.value = 1.4;
+  const a = c.createOscillator();
+  const b = c.createOscillator();
+  a.type = "sawtooth";
+  b.type = "triangle";
+  a.connect(lowpass);
+  b.connect(lowpass);
+  const hiss = c.createBufferSource();
+  hiss.buffer = getNoise(c);
+  hiss.loop = true;
+  const hissFilter = c.createBiquadFilter();
+  hissFilter.type = "bandpass";
+  hissFilter.frequency.value = 1800;
+  hissFilter.Q.value = 0.7;
+  const hissGain = c.createGain();
+  hissGain.gain.value = 0;
+  hiss.connect(hissFilter).connect(hissGain).connect(out);
+  lowpass.connect(out);
+  out.connect(c.destination);
+  a.start(t);
+  b.start(t);
+  hiss.start(t);
+  charge = { c, out, lowpass, a, b, hiss, hissGain, hissFilter };
+  chargeTick = -1;
+}
+
+function chargeSet(power) {
+  if (!charge) return;
+  const { c, out, lowpass, a, b, hissGain, hissFilter } = charge;
+  const p = clamp01(power);
+  const t = c.currentTime;
+  // Smoothed: the handle moves in steps, the sound should not.
+  const glide = (param, value) => param.setTargetAtTime(value, t, 0.04);
+  glide(a.frequency, 95 + p * 330);
+  glide(b.frequency, 95 * 1.5 + p * 330 * 1.5);
+  glide(lowpass.frequency, 420 + p * 2400);
+  glide(out.gain, p < 0.02 ? 0.0001 : 0.025 + p * 0.1);
+  glide(hissGain.gain, p * p * 0.07);
+  glide(hissFilter.frequency, 1400 + p * 3200);
+  const quarter = Math.floor(p * 4 + 0.0001);
+  if (chargeTick >= 0 && quarter > chargeTick) tone({ from: 1500 + quarter * 220, to: 1100 + quarter * 220, duration: 0.05, gain: 0.05, type: "triangle" });
+  chargeTick = quarter;
+}
+
+function chargeStop() {
+  if (!charge) return;
+  const { c, out, a, b, hiss } = charge;
+  charge = null;
+  const t = c.currentTime;
+  // A short release so it never clicks, then everything is torn down.
+  out.gain.cancelScheduledValues(t);
+  out.gain.setTargetAtTime(0.0001, t, 0.03);
+  [a, b, hiss].forEach((node) => { try { node.stop(t + 0.18); } catch { /* already stopped */ } });
+}
+
 export const audio = {
+  chargeStart,
+  chargeSet,
+  chargeStop,
   // Call from a pointer or key gesture: starts the audio context, loads the
   // recorded effects and starts the music if it is switched on.
   unlock() {
@@ -155,6 +231,7 @@ export const audio = {
   get muted() { return muted; },
   setMuted(value) {
     muted = Boolean(value);
+    if (muted) chargeStop();
     try { localStorage.setItem(MUTE_KEY, muted ? "1" : "0"); } catch { /* per-viewer convenience only */ }
     syncMusic();
     return muted;

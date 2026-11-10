@@ -109,7 +109,7 @@ export class GameScene extends Phaser.Scene {
     this.matter.world.on("collisionstart", (event) => this.handleCollisions(event));
 
     // Live ball textures belong to this match: free them when it ends.
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.balls.forEach((entry) => entry.ball.destroy()));
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => { audio.chargeStop(); this.balls.forEach((entry) => entry.ball.destroy()); });
 
     this.scene.launch("UI");
     hub.ready();
@@ -192,6 +192,7 @@ export class GameScene extends Phaser.Scene {
   // Drop a half-finished aim or power pull when the match pauses or the OS
   // cancels a touch: the release may never arrive.
   cancelDrag() {
+    audio.chargeStop();
     this.aimDrag = null;
     this.powerDrag = false;
     this.placeDrag = false;
@@ -203,6 +204,10 @@ export class GameScene extends Phaser.Scene {
   get isDragging() { return Boolean(this.aimDrag) || this.powerDrag; }
 
   update() {
+    // The charge-up sound follows the gauge for as long as the handle is held.
+    if (this.powerDrag && this.phase === PHASE.AIM) audio.chargeSet(this.power);
+    else audio.chargeStop();
+
     this.balls.forEach((entry) => {
       if (!entry.active) return;
       const { x, y } = entry.body.position;
@@ -436,6 +441,7 @@ export class GameScene extends Phaser.Scene {
       if (this.inPowerZone(p)) {
         this.powerDrag = true;
         this.power = this.powerFromY(p.worldY);
+        audio.chargeStart();
         return;
       }
       if (!this.inPlayZone(p)) return;
