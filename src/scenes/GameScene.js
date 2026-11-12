@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import { TABLE, BALL, PHYSICS, INPUT, COLORS, AI_DIFFICULTY, POWER_BAR, PLAY_ZONE, SPIN, rackFor, resolveDifficulty } from "../game/constants.js";
 import { createMatchState, pottedCount, resolveVariant, snapshotMatch } from "../game/state.js";
 import { skinFor } from "../game/balls.js";
-import { characterById, randomRival, recordCampaignResult } from "../systems/campaign.js";
+import { characterById, randomRival, recordCampaignResult, trophyCount } from "../systems/campaign.js";
 import { resolveShot, isLegalFirstContact } from "../game/rules.js";
 import { withNames as formatNames } from "../game/labels.js";
 import { projectCuePath } from "../game/aim.js";
@@ -1068,7 +1068,10 @@ export class GameScene extends Phaser.Scene {
     // Campaign matches go on the ladder; quick matches on the difficulty record.
     let record = null;
     let campaign = null;
-    if (this.opponent) campaign = recordCampaignResult(this.opponent.id, { won: winner === 1, fouls: this.stats[1].fouls, shots: this.stats[1].shots });
+    if (this.opponent) {
+      campaign = recordCampaignResult(this.opponent.id, { won: winner === 1, fouls: this.stats[1].fouls, shots: this.stats[1].shots });
+      if (campaign.won) hub.event("campaign-win", { rivalsBeaten: trophyCount(campaign.progress) });
+    }
     else if (this.mode === "ai") record = recordResult(this.difficulty, winner === 1);
     if (winner === 1 || this.mode !== "ai") audio.win(); else audio.lose();
     this.time.delayedCall(900, () => {
